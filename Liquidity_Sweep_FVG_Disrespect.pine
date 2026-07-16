@@ -1,0 +1,275 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// Liquidity Sweep + FVG Disrespect  —  ICT scalping setup
+// Session-timing and box-styling conventions are modeled on "ICT Killzones & Pivots [TFO]" (© tradeforopp),
+// used purely as a structural reference. This is an original, standalone indicator.
+//
+// SETUP (ICT logic)
+//   1. Reference level : the high & low of a chosen killzone (default London) act as liquidity pools.
+//   2. Sweep           : price WICKS through the reference high (buy-side sweep) or low (sell-side sweep).
+//                        No close beyond the level is required — a raw liquidity grab.
+//   3. FVG             : the most recent 3-candle Fair Value Gap formed on the approach leg into the sweep.
+//                        A high-sweep is reached by an up-leg -> bullish FVG. A low-sweep by a down-leg -> bearish FVG.
+//   4. Disrespect      : price closes a full body back through that FVG (the gap fails to hold) = reversal trigger.
+//   5. Targets         : stop = extreme of the disrespect candle; target = opposite side of the reference killzone.
+
+//@version=6
+indicator("Liquidity Sweep + FVG Disrespect [Scalper]", "LqSweep+FVG", overlay = true, max_labels_count = 500, max_lines_count = 500, max_boxes_count = 500)
+
+
+// ---------------------------------------- Helpers --------------------------------------------------
+get_line_type(_style) =>
+    switch _style
+        "Solid"  => line.style_solid
+        "Dotted" => line.style_dotted
+        "Dashed" => line.style_dashed
+
+// Push a drawing into a rolling store and delete the oldest once the cap is exceeded (keeps us under Pine's object limits)
+add_line(array<line> a, line l, int cap) =>
+    a.push(l)
+    while a.size() > cap
+        a.shift().delete()
+
+add_box(array<box> a, box b, int cap) =>
+    a.push(b)
+    while a.size() > cap
+        a.shift().delete()
+
+add_label(array<label> a, label lb, int cap) =>
+    a.push(lb)
+    while a.size() > cap
+        a.shift().delete()
+// ---------------------------------------- Helpers --------------------------------------------------
+
+
+// ---------------------------------------- Inputs --------------------------------------------------
+var g_SET       = "Settings"
+gmt_tz          = input.string('America/New_York', "Timezone", options = ['America/New_York','GMT-12','GMT-11','GMT-10','GMT-9','GMT-8','GMT-7','GMT-6','GMT-5','GMT-4','GMT-3','GMT-2','GMT-1','GMT+0','GMT+1','GMT+2','GMT+3','GMT+4','GMT+5','GMT+6','GMT+7','GMT+8','GMT+9','GMT+10','GMT+11','GMT+12','GMT+13','GMT+14'], tooltip = "All sessions are evaluated in this timezone. Designed for a 5-minute chart on NAS100/UT100, but works on any intraday timeframe.", group = g_SET)
+max_signals     = input.int(8, "Signals To Keep", 1, 50, tooltip = "How many past setups (FVG box + entry/SL/TP lines) to keep drawn. Older ones are removed to stay under Pine's drawing limits.", group = g_SET)
+proj_bars       = input.int(24, "Level Projection (bars)", 1, tooltip = "How far to the right the entry / stop / target lines are drawn.", group = g_SET)
+
+var g_REF       = "Reference Killzone (liquidity)"
+ref_choice      = input.string("London", "Reference Killzone", options = ["Asia","London","NY AM","NY Lunch","NY PM","Custom"], tooltip = "The session whose high & low are the liquidity levels to be swept. Default London -> its high/low get raided in the NY session.", group = g_REF)
+ref_custom      = input.session("0200-0500", "Custom Session", tooltip = "Used only when Reference Killzone = Custom.", group = g_REF)
+show_ref_box    = input.bool(true, "Show Reference Box", group = g_REF)
+ref_col         = input.color(color.orange, "Reference Color", group = g_REF)
+box_transp      = input.int(80, "Box Transparency", 0, 100, group = g_REF)
+keep_ref        = input.int(3, "Reference Boxes To Keep", 1, 20, group = g_REF)
+
+var g_HUNT      = "Hunt Window"
+use_window      = input.bool(true, "Restrict Sweeps/Entries To Session", inline = "HW", tooltip = "When on, sweeps and entries are only detected inside this session (default NY 09:30-16:00). When off, they are valid at any time after the reference session locks.", group = g_HUNT)
+window_session  = input.session("0930-1600", "", inline = "HW", group = g_HUNT)
+
+var g_FVG       = "Sweep & FVG"
+fvg_lookback    = input.int(20, "Max Bars: FVG -> Sweep", 1, tooltip = "The 3-candle FVG must have formed within this many bars before the sweep to count as part of the approach leg.", group = g_FVG)
+setup_valid     = input.int(20, "Max Bars: Sweep -> Entry", 1, tooltip = "After a sweep, wait at most this many bars for the disrespect close. If it doesn't come, the setup is cancelled.", group = g_FVG)
+strict_body     = input.bool(false, "Require Directional Body", tooltip = "When on, the disrespect candle must also close in the trade direction (bearish candle for shorts, bullish for longs), not just close beyond the FVG bound.", group = g_FVG)
+show_fvg        = input.bool(true, "Show FVG Box", group = g_FVG)
+show_swept      = input.bool(true, "Show Swept Level", group = g_FVG)
+bull_fvg_col    = input.color(color.new(color.teal, 80), "Bullish FVG", group = g_FVG)
+bear_fvg_col    = input.color(color.new(color.maroon, 80), "Bearish FVG", group = g_FVG)
+
+var g_TRADE     = "Entry / Stop / Target"
+short_col       = input.color(color.red, "Short Color", group = g_TRADE)
+long_col        = input.color(color.green, "Long Color", group = g_TRADE)
+tp_col          = input.color(color.new(color.green, 0), "Target Color", group = g_TRADE)
+sl_col          = input.color(color.new(color.red, 0), "Stop Color", group = g_TRADE)
+line_style      = get_line_type(input.string('Solid', "Line Style", options = ['Solid','Dotted','Dashed'], group = g_TRADE))
+show_lvl_labels = input.bool(true, "Show Entry/SL/TP Labels", group = g_TRADE)
+
+var g_ALERT     = "Alerts"
+use_dyn_alert   = input.bool(true, "Fire Rich alert() Payload", tooltip = "In addition to the alertcondition() alerts, fire an alert() carrying entry/SL/TP as JSON for a downstream bot. Set the TV alert to 'Once Per Bar Close'.", group = g_ALERT)
+// ---------------------------------------- Inputs --------------------------------------------------
+
+
+// Resolve the reference session string from the dropdown (defaults match the TFO killzone conventions)
+ref_session = switch ref_choice
+    "Asia"     => "2000-0000"
+    "London"   => "0200-0500"
+    "NY AM"    => "0930-1100"
+    "NY Lunch" => "1200-1300"
+    "NY PM"    => "1330-1600"
+    => ref_custom
+
+
+// ---------------------------------------- State --------------------------------------------------
+// Reference session accumulation + locked levels
+var float ref_hi   = na
+var float ref_lo   = na
+var float lock_hi  = na
+var float lock_lo  = na
+var bool  ref_ready = false
+
+// Rolling "most recent FVG" of each polarity (bounds + the bar the gap completed on)
+var float last_bull_lo   = na   // candle1.high  (bullish FVG lower bound)
+var float last_bull_hi   = na   // candle3.low   (bullish FVG upper bound)
+var int   last_bull_bar  = na
+var int   last_bull_left = na
+var float last_bear_lo   = na   // candle3.high  (bearish FVG lower bound)
+var float last_bear_hi   = na   // candle1.low   (bearish FVG upper bound)
+var int   last_bear_bar  = na
+var int   last_bear_left = na
+
+// Pending SHORT setup (armed by a high-sweep)
+var bool  pend_short     = false
+var float ps_lo          = na   // bullish FVG lower bound = disrespect trigger level (candle1.high)
+var float ps_hi          = na
+var int   ps_sweep_bar   = na
+var int   ps_fvg_left    = na
+
+// Pending LONG setup (armed by a low-sweep)
+var bool  pend_long      = false
+var float pl_lo          = na
+var float pl_hi          = na   // bearish FVG upper bound = disrespect trigger level (candle1.low)
+var int   pl_sweep_bar   = na
+var int   pl_fvg_left    = na
+
+// Drawing stores (pruned to stay under object limits)
+var array<box>   ref_boxes = array.new<box>()
+var array<box>   sig_boxes = array.new<box>()
+var array<line>  sig_lines = array.new<line>()
+var array<label> sig_labels = array.new<label>()
+
+// Per-bar signal flags (consumed by plotshape / alertcondition at global scope)
+short_fire = false
+long_fire  = false
+// ---------------------------------------- State --------------------------------------------------
+
+
+// Session membership (chart timeframe, chosen timezone)
+ref_now  = not na(time("", ref_session, gmt_tz))
+ref_prev = not na(time("", ref_session, gmt_tz)[1])
+in_win   = not use_window or not na(time("", window_session, gmt_tz))
+
+box_transp_col(color c) => color.new(c, box_transp)
+
+
+// ---------------------------------------- Core Logic --------------------------------------------------
+// Everything runs on confirmed (closed) bars so signals do not repaint intrabar.
+if barstate.isconfirmed
+
+    // --- 1. Track the reference killzone, lock its high/low once the session ends ---
+    if ref_now
+        if not ref_prev
+            // New reference session -> reset accumulators and cancel any stale setups from the prior day
+            ref_hi     := high
+            ref_lo     := low
+            ref_ready  := false
+            pend_short := false
+            pend_long  := false
+        else
+            ref_hi := math.max(ref_hi, high)
+            ref_lo := math.min(ref_lo, low)
+    if not ref_now and ref_prev
+        // Session just closed -> these become the liquidity levels to hunt
+        lock_hi   := ref_hi
+        lock_lo   := ref_lo
+        ref_ready := true
+
+    // Reference box visual
+    if show_ref_box
+        if ref_now and not ref_prev
+            b = box.new(bar_index, high, bar_index, low, xloc = xloc.bar_index, border_color = box_transp_col(ref_col), bgcolor = box_transp_col(ref_col), text = ref_choice, text_color = ref_col, text_size = size.small)
+            add_box(ref_boxes, b, keep_ref)
+        else if ref_now and ref_boxes.size() > 0
+            rb = ref_boxes.get(ref_boxes.size() - 1)
+            rb.set_right(bar_index)
+            rb.set_top(math.max(rb.get_top(), high))
+            rb.set_bottom(math.min(rb.get_bottom(), low))
+
+    // --- 2. Detect the most recent 3-candle FVG of each polarity ---
+    // candle3 = current bar (index 0), candle1 = 2 bars back (index 2); the middle candle's displacement leaves the gap.
+    // Bullish FVG: candle3.low > candle1.high  -> gap between candle1.high (lower) and candle3.low (upper)
+    if low > high[2]
+        last_bull_lo   := high[2]
+        last_bull_hi   := low
+        last_bull_bar  := bar_index
+        last_bull_left := bar_index - 2
+    // Bearish FVG: candle3.high < candle1.low  -> gap between candle3.high (lower) and candle1.low (upper)
+    if high < low[2]
+        last_bear_lo   := high
+        last_bear_hi   := low[2]
+        last_bear_bar  := bar_index
+        last_bear_left := bar_index - 2
+
+    // --- 3. Arm setups on a sweep (wick through a locked level) with a recent same-direction FVG ---
+    if ref_ready and in_win
+        // Buy-side sweep of the reference HIGH -> look for the bullish FVG from the up-leg -> short setup
+        if not pend_short and high > lock_hi and not na(last_bull_bar) and (bar_index - last_bull_bar) <= fvg_lookback
+            pend_short   := true
+            ps_lo        := last_bull_lo     // disrespect trigger = candle1.high
+            ps_hi        := last_bull_hi
+            ps_sweep_bar := bar_index
+            ps_fvg_left  := last_bull_left
+        // Sell-side sweep of the reference LOW -> look for the bearish FVG from the down-leg -> long setup
+        if not pend_long and low < lock_lo and not na(last_bear_bar) and (bar_index - last_bear_bar) <= fvg_lookback
+            pend_long    := true
+            pl_lo        := last_bear_lo
+            pl_hi        := last_bear_hi     // disrespect trigger = candle1.low
+            pl_sweep_bar := bar_index
+            pl_fvg_left  := last_bear_left
+
+    // --- 4. Entry: a full body close back through the FVG (the gap is "disrespected") ---
+    // SHORT: close below the bullish FVG's lower bound (candle1.high)
+    if pend_short
+        if close < ps_lo and (not strict_body or close < open)
+            short_fire := true
+            entry = close
+            sl    = high              // stop = high of the disrespecting candle
+            tp    = lock_lo           // target = opposite side of the reference killzone
+
+            if show_fvg
+                add_box(sig_boxes, box.new(ps_fvg_left, ps_hi, bar_index, ps_lo, xloc = xloc.bar_index, border_color = na, bgcolor = bull_fvg_col), max_signals)
+            if show_swept
+                add_line(sig_lines, line.new(ps_sweep_bar, lock_hi, bar_index + proj_bars, lock_hi, xloc = xloc.bar_index, color = short_col, style = line.style_dashed), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, entry, bar_index + proj_bars, entry, xloc = xloc.bar_index, color = short_col, style = line_style, width = 2), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, sl, bar_index + proj_bars, sl, xloc = xloc.bar_index, color = sl_col, style = line_style), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, tp, bar_index + proj_bars, tp, xloc = xloc.bar_index, color = tp_col, style = line_style), max_signals * 4)
+            if show_lvl_labels
+                add_label(sig_labels, label.new(bar_index + proj_bars, entry, "SHORT " + str.tostring(entry, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = short_col, textcolor = color.white, size = size.small), max_signals * 3)
+                add_label(sig_labels, label.new(bar_index + proj_bars, sl, "SL " + str.tostring(sl, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(sl_col, 30), textcolor = color.white, size = size.small), max_signals * 3)
+                add_label(sig_labels, label.new(bar_index + proj_bars, tp, "TP " + str.tostring(tp, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(tp_col, 30), textcolor = color.white, size = size.small), max_signals * 3)
+
+            if use_dyn_alert
+                alert('{"strategy":"LqSweep+FVG","signal":"short","entry":' + str.tostring(entry) + ',"sl":' + str.tostring(sl) + ',"tp":' + str.tostring(tp) + '}', alert.freq_once_per_bar)
+            pend_short := false
+        else if (bar_index - ps_sweep_bar) > setup_valid or low <= lock_lo
+            // Timed out, or price already ran to target without us -> cancel
+            pend_short := false
+
+    // LONG: close above the bearish FVG's upper bound (candle1.low)
+    if pend_long
+        if close > pl_hi and (not strict_body or close > open)
+            long_fire := true
+            entry = close
+            sl    = low               // stop = low of the disrespecting candle
+            tp    = lock_hi           // target = opposite side of the reference killzone
+
+            if show_fvg
+                add_box(sig_boxes, box.new(pl_fvg_left, pl_hi, bar_index, pl_lo, xloc = xloc.bar_index, border_color = na, bgcolor = bear_fvg_col), max_signals)
+            if show_swept
+                add_line(sig_lines, line.new(pl_sweep_bar, lock_lo, bar_index + proj_bars, lock_lo, xloc = xloc.bar_index, color = long_col, style = line.style_dashed), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, entry, bar_index + proj_bars, entry, xloc = xloc.bar_index, color = long_col, style = line_style, width = 2), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, sl, bar_index + proj_bars, sl, xloc = xloc.bar_index, color = sl_col, style = line_style), max_signals * 4)
+            add_line(sig_lines, line.new(bar_index, tp, bar_index + proj_bars, tp, xloc = xloc.bar_index, color = tp_col, style = line_style), max_signals * 4)
+            if show_lvl_labels
+                add_label(sig_labels, label.new(bar_index + proj_bars, entry, "LONG " + str.tostring(entry, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = long_col, textcolor = color.white, size = size.small), max_signals * 3)
+                add_label(sig_labels, label.new(bar_index + proj_bars, sl, "SL " + str.tostring(sl, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(sl_col, 30), textcolor = color.white, size = size.small), max_signals * 3)
+                add_label(sig_labels, label.new(bar_index + proj_bars, tp, "TP " + str.tostring(tp, format.mintick), xloc = xloc.bar_index, style = label.style_label_left, color = color.new(tp_col, 30), textcolor = color.white, size = size.small), max_signals * 3)
+
+            if use_dyn_alert
+                alert('{"strategy":"LqSweep+FVG","signal":"long","entry":' + str.tostring(entry) + ',"sl":' + str.tostring(sl) + ',"tp":' + str.tostring(tp) + '}', alert.freq_once_per_bar)
+            pend_long := false
+        else if (bar_index - pl_sweep_bar) > setup_valid or high >= lock_hi
+            pend_long := false
+// ---------------------------------------- Core Logic --------------------------------------------------
+
+
+// ---------------------------------------- Markers & Alerts --------------------------------------------------
+plotshape(short_fire, "Short Entry", shape.triangledown, location.abovebar, color = short_col, text = "S", textcolor = color.white, size = size.tiny)
+plotshape(long_fire,  "Long Entry",  shape.triangleup,   location.belowbar, color = long_col,  text = "L", textcolor = color.white, size = size.tiny)
+
+// Simple, static-payload alerts for a webhook bot. Set the TradingView alert to "Once Per Bar Close".
+alertcondition(short_fire, "Short Signal", '{"strategy":"LqSweep+FVG","signal":"short","symbol":"{{ticker}}","tf":"{{interval}}","price":"{{close}}","time":"{{timenow}}"}')
+alertcondition(long_fire,  "Long Signal",  '{"strategy":"LqSweep+FVG","signal":"long","symbol":"{{ticker}}","tf":"{{interval}}","price":"{{close}}","time":"{{timenow}}"}')
+// ---------------------------------------- Markers & Alerts --------------------------------------------------
