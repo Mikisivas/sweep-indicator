@@ -64,6 +64,7 @@ var g_FVG       = "Sweep & FVG"
 fvg_lookback    = input.int(20, "Max Bars: FVG -> Sweep", 1, tooltip = "The 3-candle FVG must have formed within this many bars before the sweep to count as part of the approach leg.", group = g_FVG)
 setup_valid     = input.int(20, "Max Bars: Sweep -> Entry", 1, tooltip = "After a sweep, wait at most this many bars for the disrespect close. If it doesn't come, the setup is cancelled.", group = g_FVG)
 strict_body     = input.bool(false, "Require Directional Body", tooltip = "When on, the disrespect candle must also close in the trade direction (bearish candle for shorts, bullish for longs), not just close beyond the FVG bound.", group = g_FVG)
+one_per_session = input.bool(true, "One Trade Per Session", tooltip = "Only the FIRST valid entry (long or short) after the reference session locks is taken. Everything resets when the next reference session begins.", group = g_FVG)
 show_fvg        = input.bool(true, "Show FVG Box", group = g_FVG)
 show_swept      = input.bool(true, "Show Swept Level", group = g_FVG)
 bull_fvg_col    = input.color(color.new(color.teal, 80), "Bullish FVG", group = g_FVG)
@@ -99,6 +100,7 @@ var float ref_lo   = na
 var float lock_hi  = na
 var float lock_lo  = na
 var bool  ref_ready = false
+var bool  done_session = false   // set once a trade is taken; blocks further signals until the reference session resets
 
 // Rolling "most recent FVG" of each polarity (bounds + the bar the gap completed on)
 var float last_bull_lo   = na   // candle1.high  (bullish FVG lower bound)
@@ -154,9 +156,10 @@ if barstate.isconfirmed
             // New reference session -> reset accumulators and cancel any stale setups from the prior day
             ref_hi     := high
             ref_lo     := low
-            ref_ready  := false
-            pend_short := false
-            pend_long  := false
+            ref_ready    := false
+            pend_short   := false
+            pend_long    := false
+            done_session := false
         else
             ref_hi := math.max(ref_hi, high)
             ref_lo := math.min(ref_lo, low)
@@ -193,7 +196,7 @@ if barstate.isconfirmed
         last_bear_left := bar_index - 2
 
     // --- 3. Arm setups on a sweep (wick through a locked level) with a recent same-direction FVG ---
-    if ref_ready and in_win
+    if ref_ready and in_win and (not one_per_session or not done_session)
         // Buy-side sweep of the reference HIGH -> look for the bullish FVG from the up-leg -> short setup
         if not pend_short and high > lock_hi and not na(last_bull_bar) and (bar_index - last_bull_bar) <= fvg_lookback
             pend_short   := true
@@ -232,7 +235,9 @@ if barstate.isconfirmed
 
             if use_dyn_alert
                 alert('{"strategy":"LqSweep+FVG","signal":"short","entry":' + str.tostring(entry) + ',"sl":' + str.tostring(sl) + ',"tp":' + str.tostring(tp) + '}', alert.freq_once_per_bar)
-            pend_short := false
+            pend_short   := false
+            pend_long    := false   // one trade per session -> cancel the opposite pending setup
+            done_session := true
         else if (bar_index - ps_sweep_bar) > setup_valid or low <= lock_lo
             // Timed out, or price already ran to target without us -> cancel
             pend_short := false
@@ -259,7 +264,9 @@ if barstate.isconfirmed
 
             if use_dyn_alert
                 alert('{"strategy":"LqSweep+FVG","signal":"long","entry":' + str.tostring(entry) + ',"sl":' + str.tostring(sl) + ',"tp":' + str.tostring(tp) + '}', alert.freq_once_per_bar)
-            pend_long := false
+            pend_long    := false
+            pend_short   := false   // one trade per session -> cancel the opposite pending setup
+            done_session := true
         else if (bar_index - pl_sweep_bar) > setup_valid or high >= lock_hi
             pend_long := false
 // ---------------------------------------- Core Logic --------------------------------------------------
