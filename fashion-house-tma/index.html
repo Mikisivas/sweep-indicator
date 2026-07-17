@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Urban Thread — streetwear cut from the city. Heavyweight staples, limited drops, Lagos energy.">
+  <title>Urban Thread — Home</title>
+  <!-- Single shared external stylesheet for the whole site (site-wide requirement) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<!-- data-page tells script.js which page-specific feature to run -->
+<body data-page="home">
+
+  <!-- ===== Site header: identical nav structure on all 5 pages ===== -->
+  <header class="site-header">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="brand-bar">
+      <a class="brand" href="index.html">URBAN<span>THREAD</span></a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    </div>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="products.html">Products</a></li>
+        <li><a href="trustees.html">Board of Trustees</a></li>
+        <li><a href="inquiries.html">Inquiries &amp; Appointments</a></li>
+        <li><a href="events.html">Events</a></li>
+      </ul>
+    </nav>
+
+    <!-- Marquee requirement: scrolling upcoming events, present on every page -->
+    <marquee class="ticker" behavior="scroll" direction="left" scrollamount="6">
+      &#9679; DROP 04: CONCRETE SEASON &mdash; OCT 10, 2026 &#9679; SIDEWALK POP-UP, LAGOS &mdash; NOV 21&ndash;22, 2026 &#9679; STITCH SCHOOL STYLING WORKSHOP &mdash; DEC 5, 2026 &#9679; FREE DELIVERY ON ORDERS OVER &#8358;50,000 &#9679;
+    </marquee>
+  </header>
+
+  <main id="main">
+
+    <!-- Hero: brand introduction -->
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="tag-chip">EST. 2024 &mdash; LAGOS, NIGERIA</p>
+      <h1 id="hero-title" class="display-xl">
+        CUT FROM<br>
+        <span class="outline">THE CITY</span>
+      </h1>
+      <p class="lead">
+        Urban Thread makes heavyweight streetwear for people who move.
+        Boxy cuts, screen-printed graphics, hardware that survives the commute.
+        No fillers, no re-runs &mdash; every drop is limited and numbered.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="products.html">Shop the lineup</a>
+        <a class="btn btn-ghost" href="events.html">Next drop &rarr;</a>
+      </div>
+    </section>
+
+    <div class="hazard-bar" aria-hidden="true"></div>
+
+    <!-- Brand pillars -->
+    <section class="pillars" aria-labelledby="pillars-title">
+      <h2 id="pillars-title" class="section-title">The Thread Standard</h2>
+      <div class="card-grid three">
+        <article class="card">
+          <p class="card-kicker">01 / FABRIC</p>
+          <h3>Heavyweight or nothing</h3>
+          <p>400 GSM fleece, 240 GSM jersey, ripstop shells. Built for wear, not for one wash.</p>
+        </article>
+        <article class="card">
+          <p class="card-kicker">02 / CUT</p>
+          <h3>Made to move</h3>
+          <p>Boxy through the body, articulated at the knee and elbow. Fits the street, not the mannequin.</p>
+        </article>
+        <article class="card">
+          <p class="card-kicker">03 / DROPS</p>
+          <h3>Limited, always</h3>
+          <p>Small numbered runs four times a year. When a piece sells out, it stays sold out.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- DOM Structure deliverable: JS walks the live DOM of this page and
+         renders it as an indented tree. This is also the Home page's JS feature. -->
+    <section class="dom-viewer" aria-labelledby="dom-title">
+      <h2 id="dom-title" class="section-title">Under the Hood: This Page as a DOM Tree</h2>
+      <p>
+        Every web page is a Document Object Model &mdash; a tree of nested elements.
+        Press the button and our JavaScript will recursively walk this page's live DOM
+        and print its structure below, indented by depth.
+      </p>
+      <button id="dom-btn" class="btn btn-primary" aria-expanded="false" aria-controls="dom-output">
+        Show DOM structure
+      </button>
+      <pre id="dom-output" class="dom-output" hidden aria-live="polite"></pre>
+    </section>
+
+  </main>
+
+  <!-- ===== Site footer: identical on all pages ===== -->
+  <footer class="site-footer">
+    <p class="foot-brand">URBAN THREAD</p>
+    <div class="barcode" aria-hidden="true"></div>
+    <p>Cut from the city. &copy; <span id="year"></span> Urban Thread.
+       CSC 106 / IFT 203 TMA &mdash; MIVA Open University.</p>
+  </footer>
+
+  <!-- Single shared script for all pages -->
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Urban Thread product lineup — hoodies, tees, bottoms, outerwear and accessories. Limited numbered runs.">
+  <title>Urban Thread — Products</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="products">
+
+  <!-- ===== Site header: identical nav structure on all 5 pages ===== -->
+  <header class="site-header">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="brand-bar">
+      <a class="brand" href="index.html">URBAN<span>THREAD</span></a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    </div>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="products.html">Products</a></li>
+        <li><a href="trustees.html">Board of Trustees</a></li>
+        <li><a href="inquiries.html">Inquiries &amp; Appointments</a></li>
+        <li><a href="events.html">Events</a></li>
+      </ul>
+    </nav>
+
+    <marquee class="ticker" behavior="scroll" direction="left" scrollamount="6">
+      &#9679; DROP 04: CONCRETE SEASON &mdash; OCT 10, 2026 &#9679; SIDEWALK POP-UP, LAGOS &mdash; NOV 21&ndash;22, 2026 &#9679; STITCH SCHOOL STYLING WORKSHOP &mdash; DEC 5, 2026 &#9679; FREE DELIVERY ON ORDERS OVER &#8358;50,000 &#9679;
+    </marquee>
+  </header>
+
+  <main id="main">
+
+    <section class="page-head">
+      <p class="tag-chip">DROP 03 &mdash; NOW LIVE</p>
+      <h1 class="display-lg">THE LINEUP</h1>
+      <p class="lead">Nine pieces. One city. Filter by category or search the rack.</p>
+    </section>
+
+    <div class="hazard-bar" aria-hidden="true"></div>
+
+    <!-- Products page JS feature: live category filter + text search -->
+    <section aria-labelledby="catalogue-title">
+      <h2 id="catalogue-title" class="visually-hidden">Product catalogue</h2>
+
+      <div class="filter-bar">
+        <div class="filter-group" role="group" aria-label="Filter products by category">
+          <button class="filter-btn is-active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="hoodies">Hoodies</button>
+          <button class="filter-btn" data-filter="tees">Tees</button>
+          <button class="filter-btn" data-filter="bottoms">Bottoms</button>
+          <button class="filter-btn" data-filter="outerwear">Outerwear</button>
+          <button class="filter-btn" data-filter="accessories">Accessories</button>
+        </div>
+        <label class="search-label" for="product-search">Search the rack</label>
+        <input type="search" id="product-search" class="search-input" placeholder="e.g. cargo">
+      </div>
+
+      <p id="product-count" class="result-count" aria-live="polite"></p>
+
+      <div id="product-grid" class="card-grid three">
+
+        <article class="card product-card" data-category="hoodies" data-name="Blockprint Hoodie">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Blockprint%20Hoodie" alt="Abstract graphic artwork for the Blockprint Hoodie" width="300" height="300" loading="lazy">
+          <p class="card-kicker">HOODIES</p>
+          <h3>Blockprint Hoodie</h3>
+          <p>400 GSM brushed fleece, dropped shoulder, oversized screen-printed back hit.</p>
+          <p class="price">&#8358;38,500</p>
+        </article>
+
+        <article class="card product-card" data-category="tees" data-name="Static Tee">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Static%20Tee" alt="Abstract graphic artwork for the Static Tee" width="300" height="300" loading="lazy">
+          <p class="card-kicker">TEES</p>
+          <h3>Static Tee</h3>
+          <p>Boxy-fit 240 GSM jersey with a raised puff-print chest logo. Pre-shrunk.</p>
+          <p class="price">&#8358;14,000</p>
+        </article>
+
+        <article class="card product-card" data-category="bottoms" data-name="Kerb Cargo Pant">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Kerb%20Cargo" alt="Abstract graphic artwork for the Kerb Cargo Pant" width="300" height="300" loading="lazy">
+          <p class="card-kicker">BOTTOMS</p>
+          <h3>Kerb Cargo Pant</h3>
+          <p>Ripstop cotton, six utility pockets, adjustable ankle cinch. Straight cut.</p>
+          <p class="price">&#8358;32,000</p>
+        </article>
+
+        <article class="card product-card" data-category="outerwear" data-name="Overpass Windbreaker">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Overpass%20Windbreaker" alt="Abstract graphic artwork for the Overpass Windbreaker" width="300" height="300" loading="lazy">
+          <p class="card-kicker">OUTERWEAR</p>
+          <h3>Overpass Windbreaker</h3>
+          <p>Packable shell with taped seams and a stow-away hood. Folds into its own pocket.</p>
+          <p class="price">&#8358;45,000</p>
+        </article>
+
+        <article class="card product-card" data-category="accessories" data-name="Signal Cap">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Signal%20Cap" alt="Abstract graphic artwork for the Signal Cap" width="300" height="300" loading="lazy">
+          <p class="card-kicker">ACCESSORIES</p>
+          <h3>Signal Cap</h3>
+          <p>Five-panel nylon cap with reflective under-brim strip and metal clasp.</p>
+          <p class="price">&#8358;12,500</p>
+        </article>
+
+        <article class="card product-card" data-category="tees" data-name="Third Mainland Tee">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Third%20Mainland%20Tee" alt="Abstract graphic artwork for the Third Mainland Tee" width="300" height="300" loading="lazy">
+          <p class="card-kicker">TEES</p>
+          <h3>Third Mainland Tee</h3>
+          <p>Graphic tee mapping the bridge skyline in a two-tone screen print.</p>
+          <p class="price">&#8358;15,500</p>
+        </article>
+
+        <article class="card product-card" data-category="outerwear" data-name="Danfo Puffer">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Danfo%20Puffer" alt="Abstract graphic artwork for the Danfo Puffer" width="300" height="300" loading="lazy">
+          <p class="card-kicker">OUTERWEAR</p>
+          <h3>Danfo Puffer</h3>
+          <p>Quilted harmattan-weight puffer in bus-yellow with contrast zip tape.</p>
+          <p class="price">&#8358;68,000</p>
+        </article>
+
+        <article class="card product-card" data-category="bottoms" data-name="Crosswalk Shorts">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Crosswalk%20Shorts" alt="Abstract graphic artwork for the Crosswalk Shorts" width="300" height="300" loading="lazy">
+          <p class="card-kicker">BOTTOMS</p>
+          <h3>Crosswalk Shorts</h3>
+          <p>Above-knee twill shorts with painted-stripe side seam. Elastic drawcord waist.</p>
+          <p class="price">&#8358;19,500</p>
+        </article>
+
+        <article class="card product-card" data-category="accessories" data-name="Utility Tote">
+          <img src="https://api.dicebear.com/10.x/shapes/svg?seed=Utility%20Tote" alt="Abstract graphic artwork for the Utility Tote" width="300" height="300" loading="lazy">
+          <p class="card-kicker">ACCESSORIES</p>
+          <h3>Utility Tote</h3>
+          <p>18L canvas tote with internal zip pocket and seatbelt-webbing straps.</p>
+          <p class="price">&#8358;16,000</p>
+        </article>
+
+      </div>
+
+      <p id="no-results" class="empty-note" hidden>Nothing on the rack matches that. Try another word.</p>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p class="foot-brand">URBAN THREAD</p>
+    <div class="barcode" aria-hidden="true"></div>
+    <p>Cut from the city. &copy; <span id="year"></span> Urban Thread.
+       CSC 106 / IFT 203 TMA &mdash; MIVA Open University.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

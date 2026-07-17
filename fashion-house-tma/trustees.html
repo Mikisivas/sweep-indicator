@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Meet the Urban Thread Board of Trustees — the people steering the brand.">
+  <title>Urban Thread — Board of Trustees</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="trustees">
+
+  <!-- ===== Site header: identical nav structure on all 5 pages ===== -->
+  <header class="site-header">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="brand-bar">
+      <a class="brand" href="index.html">URBAN<span>THREAD</span></a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    </div>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="products.html">Products</a></li>
+        <li><a href="trustees.html">Board of Trustees</a></li>
+        <li><a href="inquiries.html">Inquiries &amp; Appointments</a></li>
+        <li><a href="events.html">Events</a></li>
+      </ul>
+    </nav>
+
+    <marquee class="ticker" behavior="scroll" direction="left" scrollamount="6">
+      &#9679; DROP 04: CONCRETE SEASON &mdash; OCT 10, 2026 &#9679; SIDEWALK POP-UP, LAGOS &mdash; NOV 21&ndash;22, 2026 &#9679; STITCH SCHOOL STYLING WORKSHOP &mdash; DEC 5, 2026 &#9679; FREE DELIVERY ON ORDERS OVER &#8358;50,000 &#9679;
+    </marquee>
+  </header>
+
+  <main id="main">
+
+    <section class="page-head">
+      <p class="tag-chip">THE PEOPLE</p>
+      <h1 class="display-lg">BOARD OF TRUSTEES</h1>
+      <p class="lead">
+        Four people, one thread. Tap &ldquo;Read bio&rdquo; on any card to meet them properly.
+        <!-- Illustrated avatars are generated with the open-source DiceBear API
+             (MIT licence) — deterministic per name, no photo rights issues. -->
+      </p>
+    </section>
+
+    <div class="hazard-bar" aria-hidden="true"></div>
+
+    <!-- Trustees page JS feature: expandable bios (accordion-style toggles) -->
+    <section aria-labelledby="board-title">
+      <h2 id="board-title" class="visually-hidden">Board members</h2>
+      <div class="card-grid two">
+
+        <article class="card trustee-card">
+          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Adaeze%20Okonkwo" alt="Illustrated portrait of Adaeze Okonkwo" width="160" height="160" loading="lazy">
+          <h3>Adaeze &ldquo;Dez&rdquo; Okonkwo</h3>
+          <p class="card-kicker">FOUNDER &amp; CREATIVE DIRECTOR</p>
+          <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
+          <p class="bio" hidden>
+            Dez started Urban Thread from a sewing machine in Surulere, printing tees for
+            skate crews and market runners. She still signs off every drop by hand and
+            insists on wearing samples for a month before anything ships.
+          </p>
+        </article>
+
+        <article class="card trustee-card">
+          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Tobi%20Alade" alt="Illustrated portrait of Tobi Alade" width="160" height="160" loading="lazy">
+          <h3>Tobi Alade</h3>
+          <p class="card-kicker">CHIEF EXECUTIVE OFFICER</p>
+          <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
+          <p class="bio" hidden>
+            Tobi ran logistics for two of West Africa's biggest fashion retailers before
+            joining the board. He keeps the drops on schedule, the pop-ups stocked, and
+            the brand stubbornly independent.
+          </p>
+        </article>
+
+        <article class="card trustee-card">
+          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Mariam%20Bello" alt="Illustrated portrait of Mariam Bello" width="160" height="160" loading="lazy">
+          <h3>Mariam Bello</h3>
+          <p class="card-kicker">CHIEF FINANCIAL OFFICER</p>
+          <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
+          <p class="bio" hidden>
+            A chartered accountant with a sneaker archive that outgrew her spare room,
+            Mariam prices every run so the brand never has to compromise on fabric weight
+            to make the numbers work.
+          </p>
+        </article>
+
+        <article class="card trustee-card">
+          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Kelechi%20Eze" alt="Illustrated portrait of Kelechi Eze" width="160" height="160" loading="lazy">
+          <h3>Kelechi Eze</h3>
+          <p class="card-kicker">HEAD OF DESIGN</p>
+          <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
+          <p class="bio" hidden>
+            Kelechi sketches on danfo rides and turns street signage, road markings and
+            market typography into the graphic language of every collection. If it's
+            printed on a Thread piece, it started in his notebook.
+          </p>
+        </article>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p class="foot-brand">URBAN THREAD</p>
+    <div class="barcode" aria-hidden="true"></div>
+    <p>Cut from the city. &copy; <span id="year"></span> Urban Thread.
+       CSC 106 / IFT 203 TMA &mdash; MIVA Open University.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

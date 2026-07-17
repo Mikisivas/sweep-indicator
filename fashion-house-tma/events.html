@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Upcoming Urban Thread events — drops, pop-ups and workshops.">
+  <title>Urban Thread — Upcoming Events</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="events">
+
+  <!-- ===== Site header: identical nav structure on all 5 pages ===== -->
+  <header class="site-header">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="brand-bar">
+      <a class="brand" href="index.html">URBAN<span>THREAD</span></a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    </div>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="products.html">Products</a></li>
+        <li><a href="trustees.html">Board of Trustees</a></li>
+        <li><a href="inquiries.html">Inquiries &amp; Appointments</a></li>
+        <li><a href="events.html">Events</a></li>
+      </ul>
+    </nav>
+
+    <marquee class="ticker" behavior="scroll" direction="left" scrollamount="6">
+      &#9679; DROP 04: CONCRETE SEASON &mdash; OCT 10, 2026 &#9679; SIDEWALK POP-UP, LAGOS &mdash; NOV 21&ndash;22, 2026 &#9679; STITCH SCHOOL STYLING WORKSHOP &mdash; DEC 5, 2026 &#9679; FREE DELIVERY ON ORDERS OVER &#8358;50,000 &#9679;
+    </marquee>
+  </header>
+
+  <main id="main">
+
+    <section class="page-head">
+      <p class="tag-chip">MARK THE CALENDAR</p>
+      <h1 class="display-lg">UPCOMING EVENTS</h1>
+      <p class="lead">Where the brand shows up next. Pull up.</p>
+    </section>
+
+    <!-- Events page JS feature: live countdown to the next event,
+         driven by the data-date attributes on the event cards below. -->
+    <div class="countdown-banner">
+      <p class="card-kicker">NEXT UP</p>
+      <p id="countdown" class="countdown" aria-live="off">Loading countdown&hellip;</p>
+    </div>
+
+    <div class="hazard-bar" aria-hidden="true"></div>
+
+    <section aria-labelledby="events-title">
+      <h2 id="events-title" class="visually-hidden">Event listings</h2>
+      <div class="event-list">
+
+        <article class="card event-card" data-date="2026-10-10T10:00:00" data-title="Drop 04: Concrete Season">
+          <p class="event-date"><time datetime="2026-10-10">Sat, 10 October 2026 &mdash; 10:00</time></p>
+          <h3>Drop 04: CONCRETE SEASON</h3>
+          <p class="event-venue">Flagship store, Victoria Island + online</p>
+          <p>
+            Our biggest drop of the year: 14 new pieces built around raw greys, cobalt
+            hits and reflective detailing. Numbered runs, first come first served.
+            Doors at 10:00 sharp; the line starts earlier &mdash; it always does.
+          </p>
+        </article>
+
+        <article class="card event-card" data-date="2026-11-21T09:00:00" data-title="Sidewalk Pop-Up, Lagos">
+          <p class="event-date"><time datetime="2026-11-21">Sat 21 &ndash; Sun 22 November 2026</time></p>
+          <h3>SIDEWALK POP-UP &mdash; LAGOS</h3>
+          <p class="event-venue">Freedom Park, Lagos Island</p>
+          <p>
+            A weekend market takeover: archive pieces at pop-up prices, one-off samples,
+            live screen printing, and food from vendors we actually queue for. Bring cash
+            and an empty tote &mdash; or buy ours.
+          </p>
+        </article>
+
+        <article class="card event-card" data-date="2026-12-05T11:00:00" data-title="Stitch School: Styling Workshop">
+          <p class="event-date"><time datetime="2026-12-05">Sat, 5 December 2026 &mdash; 11:00</time></p>
+          <h3>STITCH SCHOOL: STYLING WORKSHOP</h3>
+          <p class="event-venue">Urban Thread Studio, Surulere</p>
+          <p>
+            A hands-on session with our design team: layering for harmattan, making one
+            piece work five ways, and basic garment care that doubles the life of your
+            fits. Limited to 25 seats &mdash; book via the inquiries page.
+          </p>
+        </article>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p class="foot-brand">URBAN THREAD</p>
+    <div class="barcode" aria-hidden="true"></div>
+    <p>Cut from the city. &copy; <span id="year"></span> Urban Thread.
+       CSC 106 / IFT 203 TMA &mdash; MIVA Open University.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

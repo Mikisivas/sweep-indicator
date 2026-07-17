@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Contact Urban Thread — send an inquiry or book a fitting, styling session or press appointment.">
+  <title>Urban Thread — Inquiries &amp; Appointments</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="inquiries">
+
+  <!-- ===== Site header: identical nav structure on all 5 pages ===== -->
+  <header class="site-header">
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="brand-bar">
+      <a class="brand" href="index.html">URBAN<span>THREAD</span></a>
+      <button class="nav-toggle" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    </div>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="products.html">Products</a></li>
+        <li><a href="trustees.html">Board of Trustees</a></li>
+        <li><a href="inquiries.html">Inquiries &amp; Appointments</a></li>
+        <li><a href="events.html">Events</a></li>
+      </ul>
+    </nav>
+
+    <marquee class="ticker" behavior="scroll" direction="left" scrollamount="6">
+      &#9679; DROP 04: CONCRETE SEASON &mdash; OCT 10, 2026 &#9679; SIDEWALK POP-UP, LAGOS &mdash; NOV 21&ndash;22, 2026 &#9679; STITCH SCHOOL STYLING WORKSHOP &mdash; DEC 5, 2026 &#9679; FREE DELIVERY ON ORDERS OVER &#8358;50,000 &#9679;
+    </marquee>
+  </header>
+
+  <main id="main">
+
+    <section class="page-head">
+      <p class="tag-chip">TALK TO US</p>
+      <h1 class="display-lg">INQUIRIES &amp; APPOINTMENTS</h1>
+      <p class="lead">
+        Sizing questions, wholesale, press, or a one-on-one fitting at the studio &mdash;
+        drop the details and we'll get back within two working days.
+      </p>
+    </section>
+
+    <div class="hazard-bar" aria-hidden="true"></div>
+
+    <!-- Inquiries page JS feature: front-end validation + confirmation message.
+         No backend — submission is intercepted in script.js. -->
+    <section aria-labelledby="form-title">
+      <h2 id="form-title" class="visually-hidden">Inquiry and appointment form</h2>
+
+      <form id="inquiry-form" class="inquiry-form" novalidate>
+        <div class="form-row">
+          <label for="inq-name">Full name <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="inq-name" name="name" required autocomplete="name">
+        </div>
+
+        <div class="form-row">
+          <label for="inq-email">Email address <span class="req" aria-hidden="true">*</span></label>
+          <input type="email" id="inq-email" name="email" required autocomplete="email" placeholder="you@example.com">
+        </div>
+
+        <div class="form-row">
+          <label for="inq-phone">Phone number <span class="req" aria-hidden="true">*</span></label>
+          <input type="tel" id="inq-phone" name="phone" required autocomplete="tel" placeholder="0801 234 5678">
+        </div>
+
+        <div class="form-row">
+          <label for="inq-reason">Reason for contact</label>
+          <select id="inq-reason" name="reason">
+            <option value="General inquiry">General inquiry</option>
+            <option value="Studio fitting appointment">Studio fitting appointment</option>
+            <option value="Styling session">Styling session</option>
+            <option value="Wholesale / stockist">Wholesale / stockist</option>
+            <option value="Press">Press</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="inq-date">Preferred date <span class="req" aria-hidden="true">*</span></label>
+          <!-- The min attribute is set to today's date by script.js -->
+          <input type="date" id="inq-date" name="date" required>
+        </div>
+
+        <div class="form-row">
+          <label for="inq-message">Message <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="inq-message" name="message" rows="5" required
+                    placeholder="Tell us what you need — sizes, quantities, dates, anything."></textarea>
+        </div>
+
+        <!-- Validation errors are written here by script.js -->
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+
+        <button type="submit" class="btn btn-primary">Send it</button>
+      </form>
+
+      <!-- Confirmation panel shown by script.js after a valid submit -->
+      <div id="form-confirm" class="confirm-panel" role="status" hidden>
+        <h3>Got it. You're on the list.</h3>
+        <p id="confirm-text"></p>
+        <button id="form-reset" class="btn btn-ghost">Send another message</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p class="foot-brand">URBAN THREAD</p>
+    <div class="barcode" aria-hidden="true"></div>
+    <p>Cut from the city. &copy; <span id="year"></span> Urban Thread.
+       CSC 106 / IFT 203 TMA &mdash; MIVA Open University.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
