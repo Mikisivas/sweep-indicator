@@ -1,0 +1,10 @@
+{
+  "name": "student-course-management",
+  "version": "1.0.0",
+  "description": "COS 201 Programming I mid-semester lab project: a console-based Student Course Management System in JavaScript (Node.js).",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js"
+  },
+  "license": "MIT"
+}
