@@ -2,7 +2,7 @@
 
 Submission for **CSC 106 / IFT 203 — Introduction to Web Technologies** (Tutor-Marked Assessment, MIVA Open University).
 
-A 5-page website for the fictional streetwear fashion house **Urban Thread**, built with vanilla HTML5, CSS3 and JavaScript — no frameworks. Open `index.html` in any browser; all links are relative, so the folder works from disk or any web server. Board avatars and product artwork are generated at view time by the free, MIT-licensed [DiceBear](https://www.dicebear.com/) API, so an internet connection is needed for images to appear.
+A 5-page website for the fictional streetwear fashion house **Urban Thread**, built with vanilla HTML5, CSS3 and JavaScript — no frameworks. Open `index.html` in any browser; all links are relative, so the folder works from disk or any web server. Board of Trustees photos are local files in `images/` (see `images/README.txt` for the expected filenames); product artwork is generated at view time by the free, MIT-licensed [DiceBear](https://www.dicebear.com/) API, so an internet connection is needed for product images to appear.
 
 ## Files
 
@@ -24,7 +24,7 @@ A 5-page website for the fictional streetwear fashion house **Urban Thread**, bu
 | Naming | "Urban Thread" — used consistently in brand bar, copy and footer on every page |
 | Product showcase | `products.html` — 9 products with names, prices (₦), descriptions and images |
 | Consistent link structure | Identical `<nav id="site-nav">` markup (same menu, order and targets) on all 5 pages |
-| Board of Trustees | `trustees.html` — 4 members with titles, bios and DiceBear illustrated portraits |
+| Board of Trustees | `trustees.html` — 4 members (Founder & Chairman, Executive Director, Creative Director, Chief Account Officer) with photos from `images/` plus titles and bios |
 | Inquiries & appointments | `inquiries.html` — name/email/phone/reason/date/message form, front-end only |
 | Upcoming events | `events.html` — 3 events with names, dates and descriptions |
 | Marquee on all pages | `<marquee class="ticker">` scrolling upcoming events in every page header |

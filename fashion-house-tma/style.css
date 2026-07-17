@@ -437,12 +437,18 @@ section {
 }
 
 /* ---------- Trustees page ---------- */
+/* Stacked full-width board cards — each member's official banner image */
+.board-list {
+  display: grid;
+  gap: 2rem;
+  max-width: 860px;
+}
+
 .trustee-card img {
-  width: 160px;
-  height: 160px;
+  width: 100%;
+  height: auto;
   border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: var(--bone);
+  background: var(--ink);
   margin-bottom: 1rem;
 }
 

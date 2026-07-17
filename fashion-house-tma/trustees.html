@@ -39,9 +39,7 @@
       <p class="tag-chip">THE PEOPLE</p>
       <h1 class="display-lg">BOARD OF TRUSTEES</h1>
       <p class="lead">
-        Four people, one thread. Tap &ldquo;Read bio&rdquo; on any card to meet them properly.
-        <!-- Illustrated avatars are generated with the open-source DiceBear API
-             (MIT licence) — deterministic per name, no photo rights issues. -->
+        Four people, one thread. Tap &ldquo;Read bio&rdquo; under any portrait to meet them properly.
       </p>
     </section>
 
@@ -50,53 +48,66 @@
     <!-- Trustees page JS feature: expandable bios (accordion-style toggles) -->
     <section aria-labelledby="board-title">
       <h2 id="board-title" class="visually-hidden">Board members</h2>
-      <div class="card-grid two">
+
+      <!-- Each member's official board card is displayed as a full-width
+         banner image from the local images/ folder, with the same name,
+         title and bio kept in HTML for accessibility and search. -->
+      <div class="board-list">
 
         <article class="card trustee-card">
-          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Adaeze%20Okonkwo" alt="Illustrated portrait of Adaeze Okonkwo" width="160" height="160" loading="lazy">
-          <h3>Adaeze &ldquo;Dez&rdquo; Okonkwo</h3>
-          <p class="card-kicker">FOUNDER &amp; CREATIVE DIRECTOR</p>
+          <img src="images/terkula-paul-terfa.jpg"
+               alt="Board card of Terkula Paul Terfa, Founder and Chairman of Urban Thread"
+               width="1280" height="853" loading="lazy">
+          <h3>Terkula Paul Terfa</h3>
+          <p class="card-kicker">FOUNDER &amp; CHAIRMAN</p>
           <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
           <p class="bio" hidden>
-            Dez started Urban Thread from a sewing machine in Surulere, printing tees for
-            skate crews and market runners. She still signs off every drop by hand and
-            insists on wearing samples for a month before anything ships.
+            Visionary leader and entrepreneur with a passion for fashion, innovation,
+            and excellence. Committed to building a global brand that redefines style,
+            empowers creativity, and inspires confidence.
           </p>
         </article>
 
         <article class="card trustee-card">
-          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Tobi%20Alade" alt="Illustrated portrait of Tobi Alade" width="160" height="160" loading="lazy">
-          <h3>Tobi Alade</h3>
-          <p class="card-kicker">CHIEF EXECUTIVE OFFICER</p>
+          <img src="images/maryam-iorfa.jpg"
+               alt="Board card of Maryam Iorfa, Executive Director of Urban Thread"
+               width="1280" height="1024" loading="lazy">
+          <h3>Maryam Iorfa</h3>
+          <p class="card-kicker">EXECUTIVE DIRECTOR</p>
           <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
           <p class="bio" hidden>
-            Tobi ran logistics for two of West Africa's biggest fashion retailers before
-            joining the board. He keeps the drops on schedule, the pop-ups stocked, and
-            the brand stubbornly independent.
+            Dynamic leader with a strong background in strategic management and
+            organizational development. Passionate about driving innovation, fostering
+            growth, and transforming creative visions into impactful fashion experiences.
           </p>
         </article>
 
         <article class="card trustee-card">
-          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Mariam%20Bello" alt="Illustrated portrait of Mariam Bello" width="160" height="160" loading="lazy">
-          <h3>Mariam Bello</h3>
-          <p class="card-kicker">CHIEF FINANCIAL OFFICER</p>
+          <img src="images/tola-adebayo.jpg"
+               alt="Board card of Tola Adebayo, Creative Director of Urban Thread"
+               width="1280" height="853" loading="lazy">
+          <h3>Tola Adebayo</h3>
+          <p class="card-kicker">CREATIVE DIRECTOR</p>
           <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
           <p class="bio" hidden>
-            A chartered accountant with a sneaker archive that outgrew her spare room,
-            Mariam prices every run so the brand never has to compromise on fabric weight
-            to make the numbers work.
+            Innovative fashion creative with an exceptional eye for detail. Passionate
+            about designing timeless, trendsetting and culturally inspired pieces that
+            tell stories and make bold statements.
           </p>
         </article>
 
         <article class="card trustee-card">
-          <img src="https://api.dicebear.com/10.x/notionists/svg?seed=Kelechi%20Eze" alt="Illustrated portrait of Kelechi Eze" width="160" height="160" loading="lazy">
-          <h3>Kelechi Eze</h3>
-          <p class="card-kicker">HEAD OF DESIGN</p>
+          <img src="images/emeka-nwachukwu.jpg"
+               alt="Board card of Emeka Nwachukwu, Chief Account Officer of Urban Thread"
+               width="1280" height="1024" loading="lazy">
+          <h3>Emeka Nwachukwu</h3>
+          <p class="card-kicker">CHIEF ACCOUNT OFFICER</p>
           <button class="btn btn-ghost bio-toggle" aria-expanded="false">Read bio</button>
           <p class="bio" hidden>
-            Kelechi sketches on danfo rides and turns street signage, road markings and
-            market typography into the graphic language of every collection. If it's
-            printed on a Thread piece, it started in his notebook.
+            Results-driven finance professional with expertise in accounting, financial
+            reporting, and compliance. Committed to maintaining financial integrity and
+            driving sustainable profitability through accuracy, transparency, and
+            strategic financial management.
           </p>
         </article>
 
