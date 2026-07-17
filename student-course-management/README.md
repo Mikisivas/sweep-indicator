@@ -40,4 +40,4 @@ Saved courses are written to `data/courses.json` (a sample file is included).
 | `src/errors.js` | Custom exception classes (`ValidationError`, `DuplicateCourseError`, `CourseNotFoundError`, `FileOperationError`). |
 | `data/courses.json` | Sample saved course list. |
 | `screenshots/program-running.png` | Screenshot of the program running. |
-| `REPORT.md` | Short project report (submission requirement). |
+| `REPORT.docx` | Short project report in Word format (submission requirement). |
