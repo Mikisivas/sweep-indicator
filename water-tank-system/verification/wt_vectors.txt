@@ -1,0 +1,73 @@
+inputs: S3 S2 S1 S0 RESET CLOCK
+outputs: L1 L0 FULL PUMP R1 R0 CNT1 CNT0 ALARM SEG_A SEG_B SEG_C SEG_D SEG_E SEG_F SEG_G
+0 0 0 0 1 0  # A: global reset
+0 0 0 0 0 0  # A: release reset
+0 0 0 0 0 0  # A: sensors=0000 setup
+0 0 0 0 0 1  # A: sensors=0000 clock edge
+0 0 0 1 0 0  # A: sensors=0001 setup
+0 0 0 1 0 1  # A: sensors=0001 clock edge
+0 0 1 0 0 0  # A: sensors=0010 setup
+0 0 1 0 0 1  # A: sensors=0010 clock edge
+0 0 1 1 0 0  # A: sensors=0011 setup
+0 0 1 1 0 1  # A: sensors=0011 clock edge
+0 1 0 0 0 0  # A: sensors=0100 setup
+0 1 0 0 0 1  # A: sensors=0100 clock edge
+0 1 0 1 0 0  # A: sensors=0101 setup
+0 1 0 1 0 1  # A: sensors=0101 clock edge
+0 1 1 0 0 0  # A: sensors=0110 setup
+0 1 1 0 0 1  # A: sensors=0110 clock edge
+0 1 1 1 0 0  # A: sensors=0111 setup
+0 1 1 1 0 1  # A: sensors=0111 clock edge
+1 0 0 0 0 0  # A: sensors=1000 setup
+1 0 0 0 0 1  # A: sensors=1000 clock edge
+1 0 0 1 0 0  # A: sensors=1001 setup
+1 0 0 1 0 1  # A: sensors=1001 clock edge
+1 0 1 0 0 0  # A: sensors=1010 setup
+1 0 1 0 0 1  # A: sensors=1010 clock edge
+1 0 1 1 0 0  # A: sensors=1011 setup
+1 0 1 1 0 1  # A: sensors=1011 clock edge
+1 1 0 0 0 0  # A: sensors=1100 setup
+1 1 0 0 0 1  # A: sensors=1100 clock edge
+1 1 0 1 0 0  # A: sensors=1101 setup
+1 1 0 1 0 1  # A: sensors=1101 clock edge
+1 1 1 0 0 0  # A: sensors=1110 setup
+1 1 1 0 0 1  # A: sensors=1110 clock edge
+1 1 1 1 0 0  # A: sensors=1111 setup
+1 1 1 1 0 1  # A: sensors=1111 clock edge
+0 0 0 0 0 0  # A: idle low
+0 0 0 0 1 0  # B1: RESET asserted, tank empty
+0 0 0 0 1 1  # B1: clock during RESET (register must stay 00)
+0 0 0 0 1 0  # B1: clock low
+0 0 0 0 0 0  # B2: RESET released, tank empty (0000)
+0 0 0 0 0 1  # B2: clock -> store level 00, display 0, pump ON
+0 0 0 1 0 0  # B3: water reaches S0 only (0001) - still level 00
+0 0 0 1 0 1  # B3: clock -> store 00
+0 0 1 1 0 0  # B4: 25 percent (0011) - level 01
+0 0 1 1 0 1  # B4: clock -> store 01, display 1
+0 1 1 1 0 0  # B5: 50 percent (0111) - level 10
+0 1 1 1 0 1  # B5: clock -> store 10, display 2
+1 1 1 1 0 0  # B6: FULL (1111) - level 11, pump OFF
+1 1 1 1 0 1  # B6: clock 1 of FULL -> counter 01
+1 1 1 1 0 0  # B7: FULL held
+1 1 1 1 0 1  # B7: clock 2 of FULL -> counter 10
+1 1 1 1 0 0  # B8: FULL held
+1 1 1 1 0 1  # B8: clock 3 of FULL -> counter 11, ALARM ON
+1 1 1 1 0 0  # B9: FULL still held
+1 1 1 1 0 1  # B9: clock 4 -> counter saturates 11, ALARM stays ON
+0 1 1 1 0 0  # B10: drained to 50 percent - FULL=0, pump ON again
+0 1 1 1 0 1  # B10: clock -> counter clears to 00, ALARM OFF, store 10
+0 0 1 1 0 0  # B11: drained to 25 percent
+0 0 1 1 0 1  # B11: clock -> store 01, display 1
+1 1 1 1 0 0  # B12: refill to FULL
+1 1 1 1 0 1  # B12: clock 1 of FULL -> counter 01
+1 1 1 1 0 0  # B12: FULL held
+1 1 1 1 0 1  # B12: clock 2 of FULL -> counter 10
+1 1 1 1 1 0  # B13: operator RESET while FULL - counter clears NOW (async)
+1 1 1 1 0 0  # B13: RESET released, FULL persists
+1 1 1 1 0 1  # B13: clock -> counter restarts at 01
+0 1 0 0 0 0  # B14: invalid code 0100 (S2 alone) - reads as level 10
+0 1 0 0 0 1  # B14: clock -> store 10, display 2
+1 0 0 0 0 0  # B15: invalid code 1000 (S3 alone) - reads as level 01
+1 0 0 0 0 1  # B15: clock -> store 01, display 1
+0 0 0 0 1 0  # B16: final reset
+0 0 0 0 0 0  # B16: idle - system back to level 00
