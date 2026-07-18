@@ -95,6 +95,16 @@ The implemented signal flow matches the block diagram required by the brief:
 CLOCK drives the register and counter flip-flops; RESET asynchronously clears
 all four flip-flops.
 
+### 1.1 The implemented circuit
+
+The screenshot below is the actual `water_tank.circ` as built in Logisim. Each
+of the six stages is labelled on the canvas, matching the steps described in
+Sections 2–7. Inputs (S0–S3, RESET, CLOCK) are on the left; nets are carried
+between stages by named tunnels; outputs drive status LEDs and the 7-segment
+display.
+
+![Full Logisim circuit — water_tank.circ, all six stages labelled](circuit_diagram.png)
+
 ---
 
 ## 2. Step 1 — Sensor Encoding
