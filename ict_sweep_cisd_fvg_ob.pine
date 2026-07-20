@@ -147,11 +147,11 @@ pruneTrades(int keep, int g) =>
                 array.remove(tBoxes, i)
                 array.remove(tBoxGrp, i)
 
-// Draw one exact price level: a solid line + a right-side label showing role & price
+// Draw one exact price level: a solid line + a small right-side label (abbrev + price)
 f_level(int x1, float p, string role, color c, int g) =>
-    regLine(line.new(x1, p, bar_index + obBars, p, color = c, width = 2), g)
-    regLabel(label.new(bar_index + obBars, p, role + "  " + str.tostring(p, format.mintick),
-         style = label.style_label_left, color = color.new(c, 82), textcolor = c, size = size.normal), g)
+    regLine(line.new(x1, p, bar_index + obBars, p, color = c, width = 1), g)
+    regLabel(label.new(bar_index + obBars, p, role + " " + str.tostring(p, format.mintick),
+         style = label.style_label_left, color = color.new(c, 82), textcolor = c, size = size.tiny), g)
 
 // ─────────────────────────── Swing liquidity ───────────────────────────
 var float lastPivLow  = na   // sell-side liquidity resting below
@@ -273,19 +273,19 @@ if bullValidNow
         regBox(box.new(bullChainStart, bullCisd, bar_index + obBars, bullSweptLow,
              border_color = color.new(colBull, 55), bgcolor = color.new(colBull, 90)), grpId)
     if showTrade
-        f_level(bullSweepBar, tp,    "TAKE PROFIT", colBull, grpId)
-        f_level(bullSweepBar, entry, "ENTRY",       colEntry, grpId)
-        f_level(bullSweepBar, stop,  "STOP",        colBear, grpId)
+        f_level(bullSweepBar, tp,    "TP", colBull, grpId)
+        f_level(bullSweepBar, entry, "EN", colEntry, grpId)
+        f_level(bullSweepBar, stop,  "SL", colBear, grpId)
     if showCard
         regLabel(label.new(bullSweepBar, stop,
-             "▲ LONG\nEntry  " + str.tostring(entry, format.mintick) +
-             "\nStop   " + str.tostring(stop, format.mintick) +
-             "\nTarget " + str.tostring(tp, format.mintick) +
-             "\nR:R    " + str.tostring(rr, "#.0#"),
+             "▲ LONG\nEN " + str.tostring(entry, format.mintick) +
+             "\nSL " + str.tostring(stop, format.mintick) +
+             "\nTP " + str.tostring(tp, format.mintick) +
+             "\nRR " + str.tostring(rr, "#.0#"),
              style = label.style_label_up, color = color.new(colEntry, 12),
-             textcolor = color.white, size = size.small, textalign = text.align_left), grpId)
-    regLabel(label.new(bar_index, high, "CISD ✓", style = label.style_label_down,
-         color = color.new(colBull, 20), textcolor = color.white, size = size.small), grpId)
+             textcolor = color.white, size = size.tiny, textalign = text.align_left), grpId)
+    regLabel(label.new(bar_index, high, "CISD", style = label.style_label_down,
+         color = color.new(colBull, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
     alert("LONG setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
@@ -304,19 +304,19 @@ if bearValidNow
         regBox(box.new(bearChainStart, bearSweptHigh, bar_index + obBars, bearCisd,
              border_color = color.new(colBear, 55), bgcolor = color.new(colBear, 90)), grpId)
     if showTrade
-        f_level(bearSweepBar, stop,  "STOP",        colBear, grpId)
-        f_level(bearSweepBar, entry, "ENTRY",       colEntry, grpId)
-        f_level(bearSweepBar, tp,    "TAKE PROFIT", colBull, grpId)
+        f_level(bearSweepBar, stop,  "SL", colBear, grpId)
+        f_level(bearSweepBar, entry, "EN", colEntry, grpId)
+        f_level(bearSweepBar, tp,    "TP", colBull, grpId)
     if showCard
         regLabel(label.new(bearSweepBar, stop,
-             "▼ SHORT\nEntry  " + str.tostring(entry, format.mintick) +
-             "\nStop   " + str.tostring(stop, format.mintick) +
-             "\nTarget " + str.tostring(tp, format.mintick) +
-             "\nR:R    " + str.tostring(rr, "#.0#"),
+             "▼ SHORT\nEN " + str.tostring(entry, format.mintick) +
+             "\nSL " + str.tostring(stop, format.mintick) +
+             "\nTP " + str.tostring(tp, format.mintick) +
+             "\nRR " + str.tostring(rr, "#.0#"),
              style = label.style_label_down, color = color.new(colEntry, 12),
-             textcolor = color.white, size = size.small, textalign = text.align_left), grpId)
-    regLabel(label.new(bar_index, low, "CISD ✓", style = label.style_label_up,
-         color = color.new(colBear, 20), textcolor = color.white, size = size.small), grpId)
+             textcolor = color.white, size = size.tiny, textalign = text.align_left), grpId)
+    regLabel(label.new(bar_index, low, "CISD", style = label.style_label_up,
+         color = color.new(colBear, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
     alert("SHORT setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
