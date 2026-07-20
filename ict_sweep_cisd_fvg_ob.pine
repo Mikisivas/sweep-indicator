@@ -36,16 +36,19 @@ useHtfFilter = input.bool(false, "Only validate setups whose sweep happens insid
 grpT = "Trade levels (beginner mode)"
 showTrade = input.bool(true, "Show exact ENTRY / STOP / TAKE PROFIT lines", group = grpT,
      tooltip = "Draws one exact price for each — no zones to interpret. A trade card summarises them.")
-entryMode = input.string("Order block 50% (mean threshold)", "Exact entry price",
+entryTiming = input.string("Confirmation — enter now (no retest)", "Entry timing",
+     options = ["Confirmation — enter now (no retest)", "Retest — wait for pullback to line"], group = grpT,
+     tooltip = "Confirmation = enter immediately at the CISD close (catches moves that run without pulling back). Retest = wait for price to trade back to the order-block line (better price, but misses runaways).")
+entryMode = input.string("Order block 50% (mean threshold)", "Retest entry price (retest timing only)",
      options = ["Order block edge (safer fill)", "Order block 50% (mean threshold)"], group = grpT,
-     tooltip = "Edge = the near side of the order block (fills more often, slightly worse price). 50% = the middle of the order block (better price, may not always fill).")
+     tooltip = "Only used when Entry timing = Retest. Edge = near side of the order block (fills more often); 50% = middle (better price, may not fill).")
 tpMode    = input.string("Opposing liquidity", "Take profit target",
      options = ["Opposing liquidity", "Fixed reward:risk"], group = grpT,
      tooltip = "Opposing liquidity = the previous high/low the model aims for. Fixed = a multiple of the risk.")
 rrTarget  = input.float(2.0, "Reward:risk (TP when fixed, or fallback)", minval = 0.5, step = 0.5, group = grpT)
 showCard  = input.bool(true, "Show plain-language trade card", group = grpT)
-showFill  = input.bool(true, "Mark when the entry LIMIT triggers (price retests the line)", group = grpT,
-     tooltip = "After CISD confirms, the entry line acts as a limit. This prints a FILL marker + alert the moment price trades back to it, and cancels the pending order if the stop is hit first or the setup expires.")
+showFill  = input.bool(true, "Mark the entry trigger (ENTER now / retest FILL marker + alert)", group = grpT,
+     tooltip = "Confirmation timing prints ENTER at the CISD close. Retest timing prints FILL when price trades back to the line (and cancels if the stop is hit first or the setup expires).")
 
 grpV = "Visuals"
 maxKeep   = input.int(3, "Keep only the last N setups on the chart", minval = 1, maxval = 30, group = grpV,
@@ -274,8 +277,9 @@ else if bearState == 1
 // Beginner mode: one precise price for each, plus a plain-language trade card.
 if bullValidNow
     grpId += 1
-    // exact entry: near edge of the order block, or its 50% mean threshold
-    float entry = entryMode == "Order block edge (safer fill)" ? bullCisd : math.avg(bullCisd, bullSweptLow)
+    // entry: confirmation timing = CISD close (enter now); retest timing = OB line
+    bool  useRetest = entryTiming == "Retest — wait for pullback to line"
+    float entry = not useRetest ? close : (entryMode == "Order block edge (safer fill)" ? bullCisd : math.avg(bullCisd, bullSweptLow))
     float stop  = bullSweptLow                                   // just under the protected low
     float risk  = entry - stop
     // take profit: opposing (buy-side) liquidity above, else a fixed reward:risk
@@ -301,19 +305,25 @@ if bullValidNow
     regLabel(label.new(bar_index, high, "CISD", style = label.style_label_down,
          color = color.new(colBull, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
-    // arm the entry limit for this setup (replaces any older pending long)
-    pLActive := true
-    pLEntry  := entry
-    pLStop   := stop
-    pLBar    := bar_index
-    pLGrp    := grpId
+    if useRetest
+        // arm the entry limit; it triggers when price pulls back to the line
+        pLActive := true
+        pLEntry  := entry
+        pLStop   := stop
+        pLBar    := bar_index
+        pLGrp    := grpId
+    else if showFill
+        // confirmation timing: entry is NOW, at the CISD close — no retest
+        regLabel(label.new(bar_index, low, "ENTER ▲", style = label.style_label_up,
+             color = color.new(colEntry, 10), textcolor = color.white, size = size.tiny), grpId)
     alert("LONG setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
 
 if bearValidNow
     grpId += 1
-    float entry = entryMode == "Order block edge (safer fill)" ? bearCisd : math.avg(bearSweptHigh, bearCisd)
+    bool  useRetest = entryTiming == "Retest — wait for pullback to line"
+    float entry = not useRetest ? close : (entryMode == "Order block edge (safer fill)" ? bearCisd : math.avg(bearSweptHigh, bearCisd))
     float stop  = bearSweptHigh                                  // just above the protected high
     float risk  = stop - entry
     bool  hasLiq = not na(lastPivLow) and lastPivLow < entry
@@ -338,12 +348,15 @@ if bearValidNow
     regLabel(label.new(bar_index, low, "CISD", style = label.style_label_up,
          color = color.new(colBear, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
-    // arm the entry limit for this setup (replaces any older pending short)
-    pSActive := true
-    pSEntry  := entry
-    pSStop   := stop
-    pSBar    := bar_index
-    pSGrp    := grpId
+    if useRetest
+        pSActive := true
+        pSEntry  := entry
+        pSStop   := stop
+        pSBar    := bar_index
+        pSGrp    := grpId
+    else if showFill
+        regLabel(label.new(bar_index, high, "ENTER ▼", style = label.style_label_down,
+             color = color.new(colEntry, 10), textcolor = color.white, size = size.tiny), grpId)
     alert("SHORT setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
