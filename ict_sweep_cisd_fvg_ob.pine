@@ -122,30 +122,41 @@ chainBear() =>
         j += 1
     [lvl, j - 1]
 
+// evaluated every bar so the compiler sees consistent calls
+[bullLvl, bullOff] = chainBull()
+[bearLvl, bearOff] = chainBear()
+
 // ─────────────────────── Setup state machines ───────────────────────
 // state 0 = idle · 1 = liquidity swept, waiting for CISD close
-var int   bullState = 0
-var float bullSweptLow = na, var float bullCisd = na
-var int   bullSweepBar = na, var int  bullChainStart = na
-var bool  bullHtfOk = false
+var int   bullState      = 0
+var float bullSweptLow   = na
+var float bullCisd       = na
+var int   bullSweepBar   = na
+var int   bullChainStart = na
+var bool  bullHtfOk      = false
 
-var int   bearState = 0
-var float bearSweptHigh = na, var float bearCisd = na
-var int   bearSweepBar = na,  var int  bearChainStart = na
-var bool  bearHtfOk = false
+var int   bearState      = 0
+var float bearSweptHigh  = na
+var float bearCisd       = na
+var int   bearSweepBar   = na
+var int   bearChainStart = na
+var bool  bearHtfOk      = false
 
-bool bullSweepNow = false, bool bullValidNow = false, bool bullFailNow = false
-bool bearSweepNow = false, bool bearValidNow = false, bool bearFailNow = false
+bool bullSweepNow = false
+bool bullValidNow = false
+bool bullFailNow  = false
+bool bearSweepNow = false
+bool bearValidNow = false
+bool bearFailNow  = false
 
 // ---- Bullish: sweep of sell-side liquidity → CISD close ABOVE ----
 if bullState == 0 and not na(lastPivLow) and low < lastPivLow
-    [lvl, off] = chainBull()
-    if not na(lvl) and lvl > low
+    if not na(bullLvl) and bullLvl > low
         bullState      := 1
         bullSweptLow   := low
-        bullCisd       := lvl
+        bullCisd       := bullLvl
         bullSweepBar   := bar_index
-        bullChainStart := bar_index - off
+        bullChainStart := bar_index - bullOff
         bullHtfOk      := insideGaps(bisiBoxes, low)
         bullSweepNow   := true
     lastPivLow := na                                  // pool consumed
@@ -161,13 +172,12 @@ else if bullState == 1
 
 // ---- Bearish: sweep of buy-side liquidity → CISD close BELOW ----
 if bearState == 0 and not na(lastPivHigh) and high > lastPivHigh
-    [lvl, off] = chainBear()
-    if not na(lvl) and lvl < high
+    if not na(bearLvl) and bearLvl < high
         bearState      := 1
         bearSweptHigh  := high
-        bearCisd       := lvl
+        bearCisd       := bearLvl
         bearSweepBar   := bar_index
-        bearChainStart := bar_index - off
+        bearChainStart := bar_index - bearOff
         bearHtfOk      := insideGaps(sibiBoxes, high)
         bearSweepNow   := true
     lastPivHigh := na
@@ -230,11 +240,16 @@ plotshape(bearSweepNow, "Buy-side sweep",  shape.triangledown, location.abovebar
 var table lg = table.new(position.top_right, 2, 5, border_width = 1,
      bgcolor = color.new(color.black, 60), border_color = color.new(color.gray, 70))
 if barstate.islast
-    table.cell(lg, 0, 0, "■", text_color = colSweep), table.cell(lg, 1, 0, "Liquidity sweep",          text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
-    table.cell(lg, 0, 1, "■", text_color = colBull),  table.cell(lg, 1, 1, "Valid bullish (CISD ✓)",   text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
-    table.cell(lg, 0, 2, "■", text_color = colBear),  table.cell(lg, 1, 2, "Valid bearish (CISD ✓)",   text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
-    table.cell(lg, 0, 3, "■", text_color = colDead),  table.cell(lg, 1, 3, "Invalid (no CISD)",        text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
-    table.cell(lg, 0, 4, "■", text_color = color.teal), table.cell(lg, 1, 4, "4H FVG (BISI/SIBI)",     text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 0, "■", text_color = colSweep)
+    table.cell(lg, 1, 0, "Liquidity sweep", text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 1, "■", text_color = colBull)
+    table.cell(lg, 1, 1, "Valid bullish (CISD ✓)", text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 2, "■", text_color = colBear)
+    table.cell(lg, 1, 2, "Valid bearish (CISD ✓)", text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 3, "■", text_color = colDead)
+    table.cell(lg, 1, 3, "Invalid (no CISD)", text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 4, "■", text_color = color.teal)
+    table.cell(lg, 1, 4, "4H FVG (BISI/SIBI)", text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
 
 // ─────────────────────────── Alerts ───────────────────────────
 alertcondition(bullSweepNow or bearSweepNow, "Liquidity sweep",      "Liquidity sweep — watch for CISD")
