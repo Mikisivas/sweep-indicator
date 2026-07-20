@@ -43,9 +43,11 @@ colBear   = input.color(#ff1744,      "Valid bearish CISD candle",  group = grpV
 colDead   = input.color(color.gray,   "Invalid setup candle",       group = grpV)
 
 // ─────────────────── HTF Fair Value Gaps (BISI / SIBI) ───────────────────
-// Values of the last COMPLETED HTF bars (offset [1]/[3]) so boxes don't repaint.
+// Only COMPLETED HTF bars are requested (offsets >= 1) with lookahead_on:
+// the classic non-repainting idiom, consistent on historical and realtime bars,
+// so a 4H gap becomes visible on the 15m chart as soon as the 4H candle closes.
 [htfH3, htfL3, htfH1, htfL1] = request.security(syminfo.tickerid, htfTf,
-     [high[3], low[3], high[1], low[1]], lookahead = barmerge.lookahead_off)
+     [high[3], low[3], high[1], low[1]], lookahead = barmerge.lookahead_on)
 newHtfBar = timeframe.change(htfTf)
 
 var array<box> bisiBoxes = array.new<box>()   // bullish gaps (support)
