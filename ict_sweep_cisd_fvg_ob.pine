@@ -44,6 +44,8 @@ tpMode    = input.string("Opposing liquidity", "Take profit target",
      tooltip = "Opposing liquidity = the previous high/low the model aims for. Fixed = a multiple of the risk.")
 rrTarget  = input.float(2.0, "Reward:risk (TP when fixed, or fallback)", minval = 0.5, step = 0.5, group = grpT)
 showCard  = input.bool(true, "Show plain-language trade card", group = grpT)
+showFill  = input.bool(true, "Mark when the entry LIMIT triggers (price retests the line)", group = grpT,
+     tooltip = "After CISD confirms, the entry line acts as a limit. This prints a FILL marker + alert the moment price trades back to it, and cancels the pending order if the stop is hit first or the setup expires.")
 
 grpV = "Visuals"
 maxKeep   = input.int(3, "Keep only the last N setups on the chart", minval = 1, maxval = 30, group = grpV,
@@ -207,6 +209,18 @@ var int   bearSweepBar   = na
 var int   bearChainStart = na
 var bool  bearHtfOk      = false
 
+// pending limit orders (armed at CISD confirm, trigger when price retests the line)
+var bool  pLActive = false
+var float pLEntry  = na
+var float pLStop   = na
+var int   pLBar    = na
+var int   pLGrp    = na
+var bool  pSActive = false
+var float pSEntry  = na
+var float pSStop   = na
+var int   pSBar    = na
+var int   pSGrp    = na
+
 bool bullSweepNow = false
 bool bullValidNow = false
 bool bullFailNow  = false
@@ -287,6 +301,12 @@ if bullValidNow
     regLabel(label.new(bar_index, high, "CISD", style = label.style_label_down,
          color = color.new(colBull, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
+    // arm the entry limit for this setup (replaces any older pending long)
+    pLActive := true
+    pLEntry  := entry
+    pLStop   := stop
+    pLBar    := bar_index
+    pLGrp    := grpId
     alert("LONG setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
@@ -318,6 +338,12 @@ if bearValidNow
     regLabel(label.new(bar_index, low, "CISD", style = label.style_label_up,
          color = color.new(colBear, 20), textcolor = color.white, size = size.tiny), grpId)
     pruneTrades(maxKeep, grpId)
+    // arm the entry limit for this setup (replaces any older pending short)
+    pSActive := true
+    pSEntry  := entry
+    pSStop   := stop
+    pSBar    := bar_index
+    pSGrp    := grpId
     alert("SHORT setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
@@ -328,6 +354,35 @@ if showInvLbl and bullFailNow
 if showInvLbl and bearFailNow
     label.new(bar_index, high, "✗ no CISD", style = label.style_label_down,
          color = color.new(colDead, 60), textcolor = colDead, size = size.tiny)
+
+// ─────────────── Entry-limit trigger (retest fill) ───────────────
+// A pending limit fills when price trades to the entry line; it is cancelled if
+// the protected low/high breaks first, or if it is not filled within obBars.
+bool longFillNow  = false
+bool shortFillNow = false
+
+if pLActive
+    if low <= pLEntry
+        longFillNow := true
+        pLActive    := false
+    else if close < pLStop or bar_index - pLBar > obBars
+        pLActive := false                                   // cancelled (stopped / expired)
+
+if pSActive
+    if high >= pSEntry
+        shortFillNow := true
+        pSActive     := false
+    else if close > pSStop or bar_index - pSBar > obBars
+        pSActive := false
+
+if showFill and longFillNow
+    regLabel(label.new(bar_index, low, "FILL ▲", style = label.style_label_up,
+         color = color.new(colEntry, 10), textcolor = color.white, size = size.tiny), pLGrp)
+    alert("LONG entry limit TRIGGERED at " + str.tostring(pLEntry, format.mintick), alert.freq_once_per_bar)
+if showFill and shortFillNow
+    regLabel(label.new(bar_index, high, "FILL ▼", style = label.style_label_down,
+         color = color.new(colEntry, 10), textcolor = color.white, size = size.tiny), pSGrp)
+    alert("SHORT entry limit TRIGGERED at " + str.tostring(pSEntry, format.mintick), alert.freq_once_per_bar)
 
 // ─────────────────────────── Candle coloring ───────────────────────────
 barcolor(bullSweepNow or bearSweepNow ? colSweep :
@@ -357,3 +412,5 @@ if barstate.islast
 alertcondition(bullSweepNow or bearSweepNow, "Liquidity sweep",      "Liquidity sweep — watch for CISD")
 alertcondition(bullValidNow,                 "Bullish CISD (valid)", "Bullish CISD confirmed — order block formed, look for retest long")
 alertcondition(bearValidNow,                 "Bearish CISD (valid)", "Bearish CISD confirmed — order block formed, look for retest short")
+alertcondition(longFillNow,                  "Long entry filled",    "LONG entry limit triggered — retest filled")
+alertcondition(shortFillNow,                 "Short entry filled",   "SHORT entry limit triggered — retest filled")
