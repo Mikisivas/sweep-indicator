@@ -37,8 +37,24 @@ exists and no trade is taken. The indicator marks both outcomes on the chart.
 | Valid bearish setup (CISD close below) | **Red** candle + `CISD ✓` label |
 | Invalid setup (timeout or close through the swept level) | **Gray** candle + `✗ no CISD` label |
 | 4H fair value gaps | Teal boxes (BISI) / maroon boxes (SIBI), pruned once rebalanced |
-| Order block (after CISD confirms) | Shaded box over the sweep series — the entry zone |
-| Protected low/high | Dashed red line — stop-loss reference |
+| **Exact entry** | Solid **blue** line at one price (order-block 50% or near edge) + `ENTRY <price>` label |
+| **Stop** | Solid **red** line just beyond the protected low/high + `STOP <price>` label |
+| **Take profit** | Solid **green** line at the opposing liquidity (or a fixed R:R) + `TAKE PROFIT <price>` label |
+| Trade card | Plain-language label: direction, entry, stop, target, and reward:risk |
+| Order block (optional) | Shaded box over the sweep series — off by default to keep the chart clean |
+
+### Beginner mode (exact levels)
+
+For handing to someone new, the indicator prints **one precise price per role** — no
+zones to interpret — plus a trade card summarising the whole trade:
+
+- **Exact entry price** — choose the order-block *50% (mean threshold)* for a better
+  price, or the *edge* for a more reliable fill.
+- **Take profit** — the opposing liquidity (previous high for longs / low for shorts),
+  or a fixed reward:risk multiple if no opposing pool is available.
+- **Stop** — just beyond the protected low/high created by the sweep.
+
+Alerts fire with the actual entry / stop / take-profit numbers filled in.
 
 ## Inputs
 
@@ -46,7 +62,10 @@ exists and no trade is taken. The indicator marks both outcomes on the chart.
 - **Max bars to confirm CISD** — sweep expires as invalid if no CISD close within this window (default 20).
 - **HTF for FVGs** — default `240` (4-hour), works on any chart timeframe (use 15m per the model).
 - **Require HTF FVG confluence** — optional filter: only validate setups whose sweep occurred inside a 4H FVG.
-- Colors, order-block drawing, and stop-line rendering are all configurable.
+- **Exact entry price** — order-block 50% (mean threshold) or the order-block edge.
+- **Take profit target** — opposing liquidity or a fixed reward:risk.
+- **Reward:risk** — the multiple used for TP when fixed, or as a fallback (default 2.0).
+- Colors, trade-line drawing, the trade card, and the optional order-block zone are all configurable.
 
 Alerts are included for sweeps, bullish CISD confirmations, and bearish CISD confirmations.
 

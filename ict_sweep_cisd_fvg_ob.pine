@@ -33,14 +33,26 @@ htfTf        = input.timeframe("240",  "HTF for Fair Value Gaps", group = grpH,
 showFvg      = input.bool(true,  "Show HTF FVGs (BISI = teal, SIBI = maroon)", group = grpH)
 useHtfFilter = input.bool(false, "Only validate setups whose sweep happens inside an HTF FVG", group = grpH)
 
+grpT = "Trade levels (beginner mode)"
+showTrade = input.bool(true, "Show exact ENTRY / STOP / TAKE PROFIT lines", group = grpT,
+     tooltip = "Draws one exact price for each — no zones to interpret. A trade card summarises them.")
+entryMode = input.string("Order block 50% (mean threshold)", "Exact entry price",
+     options = ["Order block edge (safer fill)", "Order block 50% (mean threshold)"], group = grpT,
+     tooltip = "Edge = the near side of the order block (fills more often, slightly worse price). 50% = the middle of the order block (better price, may not always fill).")
+tpMode    = input.string("Opposing liquidity", "Take profit target",
+     options = ["Opposing liquidity", "Fixed reward:risk"], group = grpT,
+     tooltip = "Opposing liquidity = the previous high/low the model aims for. Fixed = a multiple of the risk.")
+rrTarget  = input.float(2.0, "Reward:risk (TP when fixed, or fallback)", minval = 0.5, step = 0.5, group = grpT)
+showCard  = input.bool(true, "Show plain-language trade card", group = grpT)
+
 grpV = "Visuals"
-showOb    = input.bool(true, "Draw order block after CISD confirms", group = grpV)
-showStop  = input.bool(true, "Draw protected low/high (stop) line",  group = grpV)
-obBars    = input.int(20, "Extend order block / stop line (bars)", minval = 5, group = grpV)
+showOb    = input.bool(false, "Also shade the order block zone", group = grpV)
+obBars    = input.int(24, "Extend trade lines / zone (bars)", minval = 5, group = grpV)
 colSweep  = input.color(color.orange, "Sweep candle",               group = grpV)
 colBull   = input.color(#00c853,      "Valid bullish CISD candle",  group = grpV)
 colBear   = input.color(#ff1744,      "Valid bearish CISD candle",  group = grpV)
 colDead   = input.color(color.gray,   "Invalid setup candle",       group = grpV)
+colEntry  = input.color(#2962ff,      "Entry line",                 group = grpV)
 
 // ─────────────────── HTF Fair Value Gaps (BISI / SIBI) ───────────────────
 // Only COMPLETED HTF bars are requested (offsets >= 1) with lookahead_on:
@@ -89,6 +101,12 @@ insideGaps(array<box> boxes, float px) =>
         if px <= box.get_top(b) and px >= box.get_bottom(b)
             ok := true
     ok
+
+// Draw one exact price level: a solid line + a right-side label showing role & price
+f_level(int x1, float p, string role, color c) =>
+    line.new(x1, p, bar_index + obBars, p, color = c, width = 2)
+    label.new(bar_index + obBars, p, role + "  " + str.tostring(p, format.mintick),
+         style = label.style_label_left, color = color.new(c, 82), textcolor = c, size = size.normal)
 
 // ─────────────────────────── Swing liquidity ───────────────────────────
 var float lastPivLow  = na   // sell-side liquidity resting below
@@ -193,34 +211,67 @@ else if bearState == 1
     else
         bearSweptHigh := math.max(bearSweptHigh, high)
 
-// ─────────────────── Order block + stop after CISD ───────────────────
+// ─────────────────── Exact ENTRY / STOP / TARGET after CISD ───────────────────
+// Beginner mode: one precise price for each, plus a plain-language trade card.
 if bullValidNow
+    // exact entry: near edge of the order block, or its 50% mean threshold
+    float entry = entryMode == "Order block edge (safer fill)" ? bullCisd : math.avg(bullCisd, bullSweptLow)
+    float stop  = bullSweptLow                                   // just under the protected low
+    float risk  = entry - stop
+    // take profit: opposing (buy-side) liquidity above, else a fixed reward:risk
+    bool  hasLiq = not na(lastPivHigh) and lastPivHigh > entry
+    float tp    = tpMode == "Opposing liquidity" and hasLiq ? lastPivHigh : entry + rrTarget * risk
+    float rr    = risk > 0 ? (tp - entry) / risk : na
+
     if showOb
         box.new(bullChainStart, bullCisd, bar_index + obBars, bullSweptLow,
-             border_color = color.new(colBull, 40), bgcolor = color.new(colBull, 82),
-             text = "OB — long entry zone", text_color = color.new(colBull, 20), text_size = size.tiny)
-    if showStop
-        line.new(bullSweepBar, bullSweptLow, bar_index + obBars, bullSweptLow,
-             color = colBear, style = line.style_dashed)
-        label.new(bar_index + obBars, bullSweptLow, "Protected low — SL",
-             style = label.style_label_left, color = color.new(colBear, 80),
-             textcolor = colBear, size = size.small)
+             border_color = color.new(colBull, 55), bgcolor = color.new(colBull, 90))
+    if showTrade
+        f_level(bullSweepBar, tp,    "TAKE PROFIT", colBull)
+        f_level(bullSweepBar, entry, "ENTRY",       colEntry)
+        f_level(bullSweepBar, stop,  "STOP",        colBear)
+    if showCard
+        label.new(bullSweepBar, stop,
+             "▲ LONG\nEntry  " + str.tostring(entry, format.mintick) +
+             "\nStop   " + str.tostring(stop, format.mintick) +
+             "\nTarget " + str.tostring(tp, format.mintick) +
+             "\nR:R    " + str.tostring(rr, "#.0#"),
+             style = label.style_label_up, color = color.new(colEntry, 12),
+             textcolor = color.white, size = size.small, textalign = text.align_left)
     label.new(bar_index, high, "CISD ✓", style = label.style_label_down,
          color = color.new(colBull, 20), textcolor = color.white, size = size.small)
+    alert("LONG setup confirmed. Entry " + str.tostring(entry, format.mintick) +
+         ", Stop " + str.tostring(stop, format.mintick) +
+         ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
 
 if bearValidNow
+    float entry = entryMode == "Order block edge (safer fill)" ? bearCisd : math.avg(bearSweptHigh, bearCisd)
+    float stop  = bearSweptHigh                                  // just above the protected high
+    float risk  = stop - entry
+    bool  hasLiq = not na(lastPivLow) and lastPivLow < entry
+    float tp    = tpMode == "Opposing liquidity" and hasLiq ? lastPivLow : entry - rrTarget * risk
+    float rr    = risk > 0 ? (entry - tp) / risk : na
+
     if showOb
         box.new(bearChainStart, bearSweptHigh, bar_index + obBars, bearCisd,
-             border_color = color.new(colBear, 40), bgcolor = color.new(colBear, 82),
-             text = "OB — short entry zone", text_color = color.new(colBear, 20), text_size = size.tiny)
-    if showStop
-        line.new(bearSweepBar, bearSweptHigh, bar_index + obBars, bearSweptHigh,
-             color = colBear, style = line.style_dashed)
-        label.new(bar_index + obBars, bearSweptHigh, "Protected high — SL",
-             style = label.style_label_left, color = color.new(colBear, 80),
-             textcolor = colBear, size = size.small)
+             border_color = color.new(colBear, 55), bgcolor = color.new(colBear, 90))
+    if showTrade
+        f_level(bearSweepBar, stop,  "STOP",        colBear)
+        f_level(bearSweepBar, entry, "ENTRY",       colEntry)
+        f_level(bearSweepBar, tp,    "TAKE PROFIT", colBull)
+    if showCard
+        label.new(bearSweepBar, stop,
+             "▼ SHORT\nEntry  " + str.tostring(entry, format.mintick) +
+             "\nStop   " + str.tostring(stop, format.mintick) +
+             "\nTarget " + str.tostring(tp, format.mintick) +
+             "\nR:R    " + str.tostring(rr, "#.0#"),
+             style = label.style_label_down, color = color.new(colEntry, 12),
+             textcolor = color.white, size = size.small, textalign = text.align_left)
     label.new(bar_index, low, "CISD ✓", style = label.style_label_up,
          color = color.new(colBear, 20), textcolor = color.white, size = size.small)
+    alert("SHORT setup confirmed. Entry " + str.tostring(entry, format.mintick) +
+         ", Stop " + str.tostring(stop, format.mintick) +
+         ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
 
 if bullFailNow
     label.new(bar_index, low, "✗ no CISD", style = label.style_label_up,

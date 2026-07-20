@@ -8,6 +8,7 @@
     --valid:#0a7d0a; --valid-fill:#0ca30c;
     --invalid:#6b7280; --invalid-fill:#9ca3af;
     --danger:#d03b3b;
+    --entry:#2f6df6;
     --fvg:rgba(13,148,136,.14); --fvg-line:#0d9488;
     --ob:rgba(12,163,12,.12); --ob-line:rgba(12,163,12,.55);
     --badge:#1c2130; --badge-ink:#ffffff;
@@ -21,6 +22,7 @@
       --valid:#2fd05f; --valid-fill:#0ca30c;
       --invalid:#9ca3af; --invalid-fill:#6b7280;
       --danger:#f0625d;
+      --entry:#5b8dff;
       --fvg:rgba(20,184,166,.14); --fvg-line:#2dd4bf;
       --ob:rgba(34,197,94,.13); --ob-line:rgba(46,204,113,.6);
       --badge:#e8ebf1; --badge-ink:#101318;
@@ -34,6 +36,7 @@
     --valid:#2fd05f; --valid-fill:#0ca30c;
     --invalid:#9ca3af; --invalid-fill:#6b7280;
     --danger:#f0625d;
+    --entry:#5b8dff;
     --fvg:rgba(20,184,166,.14); --fvg-line:#2dd4bf;
     --ob:rgba(34,197,94,.13); --ob-line:rgba(46,204,113,.6);
     --badge:#e8ebf1; --badge-ink:#101318;
@@ -46,6 +49,7 @@
     --valid:#0a7d0a; --valid-fill:#0ca30c;
     --invalid:#6b7280; --invalid-fill:#9ca3af;
     --danger:#d03b3b;
+    --entry:#2f6df6;
     --fvg:rgba(13,148,136,.14); --fvg-line:#0d9488;
     --ob:rgba(12,163,12,.12); --ob-line:rgba(12,163,12,.55);
     --badge:#1c2130; --badge-ink:#ffffff;
@@ -120,7 +124,9 @@
     <span class="k"><span class="sw" style="background:var(--neutral-dn)"></span><span class="sw" style="background:var(--panel);border:1.5px solid var(--neutral-up)"></span>Neutral down / up</span>
     <span class="k"><span class="sw zone" style="background:var(--fvg);border:1px solid var(--fvg-line)"></span>4H FVG (BISI)</span>
     <span class="k"><span class="sw zone" style="background:var(--ob);border:1px solid var(--ob-line)"></span>Order block</span>
-    <span class="k"><span class="sw" style="background:none;border-top:2px dashed var(--danger);height:0;align-self:center"></span>Protected low (stop)</span>
+    <span class="k"><span class="sw" style="background:none;border-top:3px solid var(--entry);height:0;align-self:center"></span>Exact entry</span>
+    <span class="k"><span class="sw" style="background:none;border-top:3px solid var(--danger);height:0;align-self:center"></span>Stop</span>
+    <span class="k"><span class="sw" style="background:none;border-top:3px solid var(--valid);height:0;align-self:center"></span>Take profit</span>
   </div>
 
   <div class="grid2">
@@ -130,10 +136,10 @@
       <ol class="steps">
         <li><b>Sweep (orange):</b> the wick trades below the previous low — stops are taken — inside the 4H BISI, and price snaps back above the level.</li>
         <li><b>CISD (green):</b> a candle <b>closes above 57.0</b>, the open of the first down-close candle in the sweep series. Delivery flips from sell-side to buy-side.</li>
-        <li><b>Entry:</b> the sweep series is now an order block; go long on the retest of it.</li>
-        <li><b>Stop &amp; target:</b> stop below the protected low; target the opposing (buy-side) liquidity at the session high.</li>
+        <li><b>Buy at the exact entry — 46.5:</b> the order block forms; place a buy order at its 50% level (blue line) and wait for price to retest it. One price, no guessing.</li>
+        <li><b>Stop 35.0, take profit 80.0:</b> stop just below the protected low; take profit at the opposing liquidity above. Here that&rsquo;s about 2.9&times; the risk.</li>
       </ol>
-      <p class="verdict ok">Valid — sweep + close above CISD level = confirmed shift. Entry on OB retest.</p>
+      <p class="verdict ok">Valid — buy 46.5 · stop 35.0 · take profit 80.0 (≈ 2.9 : 1 reward-to-risk).</p>
     </section>
 
     <section class="card">
@@ -162,7 +168,7 @@
   }
 
   // panel geometry
-  const W = 560, H = 400, padL = 14, padR = 118, padT = 26, padB = 20;
+  const W = 560, H = 400, padL = 14, padR = 132, padT = 26, padB = 20;
 
   function render(id, cfg){
     const svg = document.getElementById(id);
@@ -193,11 +199,14 @@
       }
     });
 
-    // horizontal levels; L.shift nudges the label to dodge a neighbor
+    // horizontal levels; L.trade => bold solid line (entry/stop/tp), else thin dashed context
     (cfg.levels||[]).forEach(L=>{
-      el("line", {x1:padL, x2:W-padR+8, y1:y(L.p), y2:y(L.p), stroke:L.color, class:"lvl"}, svg);
+      el("line", {x1:padL, x2:W-padR+8, y1:y(L.p), y2:y(L.p), stroke:L.color,
+                  "stroke-width": L.trade?2.2:1.3, fill:"none",
+                  "stroke-dasharray": L.trade?"none":"5 4"}, svg);
       const ty = y(L.p) + 3.5 + (L.shift||0);
-      const t = el("text", {x:W-padR+14, y:ty, fill:L.color, class:"lvl-label"}, svg);
+      const t = el("text", {x:W-padR+14, y:ty, fill:L.color, class:"lvl-label",
+                            "font-weight": L.trade?800:600}, svg);
       (L.label+"").split("\n").forEach((ln,i)=>{
         el("tspan", {x:W-padR+14, dy: i===0?0:11}, t).textContent = ln;
       });
@@ -226,10 +235,10 @@
       const defs = el("defs", {}, svg);
       const m = el("marker", {id:"arr-"+id, viewBox:"0 0 8 8", refX:4, refY:4,
                               markerWidth:6, markerHeight:6, orient:"auto-start-reverse"}, defs);
-      el("path", {d:"M 0 0 L 8 4 L 0 8 z", fill:"var(--valid)"}, m);
-      el("path", {d:`M ${ex} ${ey+44} L ${ex} ${ey+10}`, stroke:"var(--valid)", "stroke-width":2.2, fill:"none",
+      el("path", {d:"M 0 0 L 8 4 L 0 8 z", fill:"var(--entry)"}, m);
+      el("path", {d:`M ${ex} ${ey+40} L ${ex} ${ey+9}`, stroke:"var(--entry)", "stroke-width":2.2, fill:"none",
                   "marker-end":"url(#arr-"+id+")"}, svg);
-      el("text", {x:ex+8, y:ey+38, fill:"var(--valid)", class:"lvl-label"}, svg).textContent = "LONG";
+      el("text", {x:ex+8, y:ey+36, fill:"var(--entry)", class:"lvl-label"}, svg).textContent = "BUY";
     }
   }
 
@@ -242,10 +251,10 @@
       {top:57, bottom:36, from:1, to:null, fill:"var(--ob)", line:"var(--ob-line)", dash:"4 3", label:"ORDER BLOCK", labelPos:"tr-in"}
     ],
     levels: [
-      {p:80, color:"var(--muted)",  label:"TARGET\nOPPOSING LIQ."},
-      {p:57, color:"var(--valid)",  label:"CISD 57.0", shift:-4},
-      {p:40, color:"var(--muted)",  label:"PREV LOW\nSELL-SIDE LIQ.", shift:-14},
-      {p:36, color:"var(--danger)", label:"PROTECTED LOW\nSTOP", shift:6}
+      {p:80,   color:"var(--valid)",  trade:true, label:"TAKE PROFIT 80.0\nopp. liquidity"},
+      {p:57,   color:"var(--muted)",              label:"CISD 57.0", shift:-4},
+      {p:46.5, color:"var(--entry)",  trade:true, label:"ENTRY 46.5\norder-block 50%"},
+      {p:35,   color:"var(--danger)", trade:true, label:"STOP 35.0\nbelow prot. low", shift:8}
     ],
     candles: [
       {o:56,h:61,l:55,c:60,t:up},
@@ -254,18 +263,18 @@
       {o:46,h:48,l:36,c:42,t:"sweep"},
       {o:42,h:50,l:40,c:49,t:up},
       {o:49,h:61,l:47,c:59,t:"valid"},
-      {o:59,h:60,l:52,c:54,t:dn},
-      {o:54,h:64,l:53,c:63,t:up},
-      {o:63,h:74,l:62,c:72,t:up},
-      {o:72,h:82,l:70,c:80,t:up}
+      {o:57,h:60,l:46,c:56,t:dn},
+      {o:56,h:65,l:55,c:64,t:up},
+      {o:64,h:74,l:63,c:73,t:up},
+      {o:73,h:83,l:71,c:80,t:up}
     ],
     badges: [
       {n:1,i:3,p:36,above:false},
       {n:2,i:5,p:61,above:true},
-      {n:3,i:6,p:43,above:false},
-      {n:4,i:9,p:82,above:true}
+      {n:3,i:6,p:60,above:true},
+      {n:4,i:9,p:83,above:true}
     ],
-    entry: {i:6, p:52}
+    entry: {i:6, p:46.5}
   });
 
   render("invalid", {
