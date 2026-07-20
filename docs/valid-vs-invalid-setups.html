@@ -1,0 +1,299 @@
+<title>ICT Sweep + CISD — Valid vs Invalid Setup</title>
+<style>
+  :root{
+    --surface:#f7f8fa; --panel:#ffffff; --ink:#1c2130; --muted:#5b6474; --line:#d9dde5;
+    --grid:#eceef3;
+    --neutral-up:#9aa3b5; --neutral-dn:#7c8598;
+    --sweep:#b97900; --sweep-fill:#fab219;
+    --valid:#0a7d0a; --valid-fill:#0ca30c;
+    --invalid:#6b7280; --invalid-fill:#9ca3af;
+    --danger:#d03b3b;
+    --fvg:rgba(13,148,136,.14); --fvg-line:#0d9488;
+    --ob:rgba(12,163,12,.12); --ob-line:rgba(12,163,12,.55);
+    --badge:#1c2130; --badge-ink:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --surface:#101318; --panel:#171b22; --ink:#e8ebf1; --muted:#8a93a5; --line:#2a3040;
+      --grid:#1e232e;
+      --neutral-up:#aab3c5; --neutral-dn:#5d6678;
+      --sweep:#fab219; --sweep-fill:#fab219;
+      --valid:#2fd05f; --valid-fill:#0ca30c;
+      --invalid:#9ca3af; --invalid-fill:#6b7280;
+      --danger:#f0625d;
+      --fvg:rgba(20,184,166,.14); --fvg-line:#2dd4bf;
+      --ob:rgba(34,197,94,.13); --ob-line:rgba(46,204,113,.6);
+      --badge:#e8ebf1; --badge-ink:#101318;
+    }
+  }
+  :root[data-theme="dark"]{
+    --surface:#101318; --panel:#171b22; --ink:#e8ebf1; --muted:#8a93a5; --line:#2a3040;
+    --grid:#1e232e;
+    --neutral-up:#aab3c5; --neutral-dn:#5d6678;
+    --sweep:#fab219; --sweep-fill:#fab219;
+    --valid:#2fd05f; --valid-fill:#0ca30c;
+    --invalid:#9ca3af; --invalid-fill:#6b7280;
+    --danger:#f0625d;
+    --fvg:rgba(20,184,166,.14); --fvg-line:#2dd4bf;
+    --ob:rgba(34,197,94,.13); --ob-line:rgba(46,204,113,.6);
+    --badge:#e8ebf1; --badge-ink:#101318;
+  }
+  :root[data-theme="light"]{
+    --surface:#f7f8fa; --panel:#ffffff; --ink:#1c2130; --muted:#5b6474; --line:#d9dde5;
+    --grid:#eceef3;
+    --neutral-up:#9aa3b5; --neutral-dn:#7c8598;
+    --sweep:#b97900; --sweep-fill:#fab219;
+    --valid:#0a7d0a; --valid-fill:#0ca30c;
+    --invalid:#6b7280; --invalid-fill:#9ca3af;
+    --danger:#d03b3b;
+    --fvg:rgba(13,148,136,.14); --fvg-line:#0d9488;
+    --ob:rgba(12,163,12,.12); --ob-line:rgba(12,163,12,.55);
+    --badge:#1c2130; --badge-ink:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{
+    background:var(--surface); color:var(--ink);
+    font:15px/1.55 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    margin:0; padding:32px 20px 56px;
+  }
+  .wrap{max-width:1140px;margin:0 auto}
+  header{margin-bottom:22px}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  h1{font-size:26px;margin:6px 0 8px;text-wrap:balance;letter-spacing:-.01em}
+  .sub{color:var(--muted);max-width:68ch;margin:0}
+  .pillars{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0}
+  .pill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 12px;font-size:12.5px;color:var(--ink)}
+  .pill b{font-weight:650}
+  .legend{display:flex;flex-wrap:wrap;gap:14px 20px;margin:22px 0 14px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:12.5px;color:var(--muted)}
+  .legend .k{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:13px;height:13px;border-radius:3px;flex:none}
+  .sw.zone{width:20px;border-radius:2px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:960px){.grid2{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+  .card h2{display:flex;align-items:center;gap:10px;font-size:15.5px;margin:0;padding:14px 18px 12px;border-bottom:1px solid var(--line)}
+  .tag{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border-radius:5px;padding:3px 8px}
+  .tag.ok{background:var(--ob);color:var(--valid);border:1px solid var(--ob-line)}
+  .tag.no{background:rgba(150,155,165,.14);color:var(--invalid);border:1px solid var(--invalid-fill)}
+  .chart{padding:6px 8px 0;overflow-x:auto}
+  svg{display:block;width:100%;height:auto}
+  ol.steps{margin:10px 0 16px;padding:0 18px 0 38px;font-size:13.5px;color:var(--muted)}
+  ol.steps li{margin:7px 0}
+  ol.steps b{color:var(--ink);font-weight:600}
+  .verdict{margin:0 18px 18px;padding:10px 14px;border-radius:8px;font-size:13.5px;font-weight:600}
+  .verdict.ok{background:var(--ob);color:var(--valid);border:1px solid var(--ob-line)}
+  .verdict.no{background:rgba(150,155,165,.12);color:var(--invalid);border:1px solid var(--invalid-fill)}
+  .rules{margin-top:22px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 18px;font-size:13.5px;color:var(--muted)}
+  .rules b{color:var(--ink)}
+  /* SVG marks */
+  .zone-label,.lvl-label{font:600 10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
+  .lvl{stroke-dasharray:5 4;stroke-width:1.3;fill:none}
+  .wick{stroke-width:1.6}
+  .body{rx:1.5}
+  .c-up  .wick{stroke:var(--neutral-up)}  .c-up  .body{fill:var(--panel);stroke:var(--neutral-up);stroke-width:1.4}
+  .c-dn  .wick{stroke:var(--neutral-dn)}  .c-dn  .body{fill:var(--neutral-dn)}
+  .c-sweep .wick{stroke:var(--sweep-fill)} .c-sweep .body{fill:var(--sweep-fill)}
+  .c-valid .wick{stroke:var(--valid-fill)} .c-valid .body{fill:var(--valid-fill)}
+  .c-inv .wick{stroke:var(--invalid-fill)} .c-inv .body{fill:var(--invalid-fill)}
+  .badge circle{fill:var(--badge)} .badge text{fill:var(--badge-ink);font:700 10.5px ui-sans-serif,system-ui,sans-serif}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">ICT model &middot; sweep &rarr; CISD &rarr; order block</div>
+    <h1>Valid vs. invalid setup, candle by candle</h1>
+    <p class="sub">Both charts start identically: price sells off and sweeps the previous low (sell-side liquidity)
+      inside a 4H fair value gap. What separates a trade from no-trade is one thing — whether a candle
+      <b>closes</b> back through the opens of the down-close series that did the sweep (the CISD level).</p>
+    <div class="pillars">
+      <span class="pill"><b>1 · Sweep</b> — stops under a prior low get taken</span>
+      <span class="pill"><b>2 · 4H FVG</b> — HTF zone price is trading into</span>
+      <span class="pill"><b>3 · CISD</b> — close through the sweep series&rsquo; opens</span>
+      <span class="pill"><b>4 · Order block</b> — the sweep series becomes the entry zone</span>
+    </div>
+  </header>
+
+  <div class="legend" aria-label="Candle color legend">
+    <span class="k"><span class="sw" style="background:var(--sweep-fill)"></span>Sweep candle</span>
+    <span class="k"><span class="sw" style="background:var(--valid-fill)"></span>CISD confirmation (valid)</span>
+    <span class="k"><span class="sw" style="background:var(--invalid-fill)"></span>Failed / invalid candles</span>
+    <span class="k"><span class="sw" style="background:var(--neutral-dn)"></span><span class="sw" style="background:var(--panel);border:1.5px solid var(--neutral-up)"></span>Neutral down / up</span>
+    <span class="k"><span class="sw zone" style="background:var(--fvg);border:1px solid var(--fvg-line)"></span>4H FVG (BISI)</span>
+    <span class="k"><span class="sw zone" style="background:var(--ob);border:1px solid var(--ob-line)"></span>Order block</span>
+    <span class="k"><span class="sw" style="background:none;border-top:2px dashed var(--danger);height:0;align-self:center"></span>Protected low (stop)</span>
+  </div>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Valid setup <span class="tag ok">Trade</span></h2>
+      <div class="chart"><svg id="valid" viewBox="0 0 560 400" role="img" aria-label="Candle chart of a valid setup: sweep of the previous low inside a 4H fair value gap, then a close above the CISD level, order block retest entry, rally to opposing liquidity"></svg></div>
+      <ol class="steps">
+        <li><b>Sweep (orange):</b> the wick trades below the previous low — stops are taken — inside the 4H BISI, and price snaps back above the level.</li>
+        <li><b>CISD (green):</b> a candle <b>closes above 57.0</b>, the open of the first down-close candle in the sweep series. Delivery flips from sell-side to buy-side.</li>
+        <li><b>Entry:</b> the sweep series is now an order block; go long on the retest of it.</li>
+        <li><b>Stop &amp; target:</b> stop below the protected low; target the opposing (buy-side) liquidity at the session high.</li>
+      </ol>
+      <p class="verdict ok">Valid — sweep + close above CISD level = confirmed shift. Entry on OB retest.</p>
+    </section>
+
+    <section class="card">
+      <h2>Invalid setup <span class="tag no">No trade</span></h2>
+      <div class="chart"><svg id="invalid" viewBox="0 0 560 400" role="img" aria-label="Candle chart of an invalid setup: same sweep of the previous low, but no candle closes above the CISD level; a wick pokes above it, then price closes below the swept low and continues down"></svg></div>
+      <ol class="steps">
+        <li><b>Sweep (orange):</b> identical start — the previous low is swept inside the 4H BISI.</li>
+        <li><b>No CISD (gray):</b> price <b>wicks</b> above 57.0 but never <b>closes</b> above it. A wick is not a change in state of delivery.</li>
+        <li><b>Invalidated:</b> a candle closes <b>below the swept low</b> — the "protected" low failed; sellers are still delivering. Price continues lower.</li>
+      </ol>
+      <p class="verdict no">Invalid — a sweep without a CISD close is not a setup. No order block, no entry.</p>
+    </section>
+  </div>
+
+  <p class="rules"><b>The rule in one line:</b> HTF context (price at a 4H FVG / OB) &rarr; LTF sweep of liquidity &rarr; wait for a 15-minute <b>close</b> through the CISD level &rarr; only then does the sweep series become an order block &rarr; enter on its retest, stop beyond the protected low/high, target opposing liquidity. Everything before that close is just a sweep — and a sweep alone can keep going against you.</p>
+</div>
+
+<script>
+(function(){
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent){
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  // panel geometry
+  const W = 560, H = 400, padL = 14, padR = 118, padT = 26, padB = 20;
+
+  function render(id, cfg){
+    const svg = document.getElementById(id);
+    const n = cfg.candles.length;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const y = p => padT + (cfg.yMax - p) / (cfg.yMax - cfg.yMin) * plotH;
+    const step = plotW / n;
+    const cw = Math.min(24, step * 0.55);
+    const x = i => padL + step * i + step / 2;
+
+    // faint grid
+    for (let g = 0; g <= 4; g++){
+      const gy = padT + plotH * g / 4;
+      el("line", {x1:padL, x2:W-padR+4, y1:gy, y2:gy, stroke:"var(--grid)", "stroke-width":1}, svg);
+    }
+
+    // zones behind everything (labels sit top-left inside the zone)
+    (cfg.zones||[]).forEach(z=>{
+      const x1 = z.from!=null ? x(z.from)-cw/2-4 : padL;
+      const x2 = z.to!=null ? x(z.to)+cw/2+4 : W-padR+4;
+      el("rect", {x:x1, y:y(z.top), width:x2-x1, height:y(z.bottom)-y(z.top),
+                  fill:z.fill, stroke:z.line, "stroke-width":1, "stroke-dasharray": z.dash||"none", rx:2}, svg);
+      if (z.label){
+        const right = z.labelPos === "tr-in";
+        el("text", {x: right ? x2-7 : x1+7, y: right ? y(z.top)+13 : y(z.top)-5,
+                    "text-anchor": right ? "end" : "start", fill:z.line, class:"zone-label"}, svg)
+          .textContent = z.label;
+      }
+    });
+
+    // horizontal levels; L.shift nudges the label to dodge a neighbor
+    (cfg.levels||[]).forEach(L=>{
+      el("line", {x1:padL, x2:W-padR+8, y1:y(L.p), y2:y(L.p), stroke:L.color, class:"lvl"}, svg);
+      const ty = y(L.p) + 3.5 + (L.shift||0);
+      const t = el("text", {x:W-padR+14, y:ty, fill:L.color, class:"lvl-label"}, svg);
+      (L.label+"").split("\n").forEach((ln,i)=>{
+        el("tspan", {x:W-padR+14, dy: i===0?0:11}, t).textContent = ln;
+      });
+    });
+
+    // candles
+    cfg.candles.forEach((c,i)=>{
+      const g = el("g", {class:"c-"+c.t}, svg);
+      el("line", {x1:x(i), x2:x(i), y1:y(c.h), y2:y(c.l), class:"wick"}, g);
+      const top = Math.min(y(c.o), y(c.c));
+      const hgt = Math.max(2.5, Math.abs(y(c.o)-y(c.c)));
+      el("rect", {x:x(i)-cw/2, y:top, width:cw, height:hgt, class:"body"}, g);
+    });
+
+    // numbered badges
+    (cfg.badges||[]).forEach(b=>{
+      const bx = x(b.i), by = b.above ? y(b.p)-14 : y(b.p)+14;
+      const g = el("g", {class:"badge"}, svg);
+      el("circle", {cx:bx, cy:by, r:9}, g);
+      el("text", {x:bx, y:by+3.6, "text-anchor":"middle"}, g).textContent = b.n;
+    });
+
+    // entry arrow (valid panel)
+    if (cfg.entry){
+      const ex = x(cfg.entry.i), ey = y(cfg.entry.p);
+      const defs = el("defs", {}, svg);
+      const m = el("marker", {id:"arr-"+id, viewBox:"0 0 8 8", refX:4, refY:4,
+                              markerWidth:6, markerHeight:6, orient:"auto-start-reverse"}, defs);
+      el("path", {d:"M 0 0 L 8 4 L 0 8 z", fill:"var(--valid)"}, m);
+      el("path", {d:`M ${ex} ${ey+44} L ${ex} ${ey+10}`, stroke:"var(--valid)", "stroke-width":2.2, fill:"none",
+                  "marker-end":"url(#arr-"+id+")"}, svg);
+      el("text", {x:ex+8, y:ey+38, fill:"var(--valid)", class:"lvl-label"}, svg).textContent = "LONG";
+    }
+  }
+
+  const dn="dn", up="up";
+
+  render("valid", {
+    yMin: 30, yMax: 86,
+    zones: [
+      {top:47, bottom:35, fill:"var(--fvg)", line:"var(--fvg-line)", label:"4H FVG · BISI"},
+      {top:57, bottom:36, from:1, to:null, fill:"var(--ob)", line:"var(--ob-line)", dash:"4 3", label:"ORDER BLOCK", labelPos:"tr-in"}
+    ],
+    levels: [
+      {p:80, color:"var(--muted)",  label:"TARGET\nOPPOSING LIQ."},
+      {p:57, color:"var(--valid)",  label:"CISD 57.0", shift:-4},
+      {p:40, color:"var(--muted)",  label:"PREV LOW\nSELL-SIDE LIQ.", shift:-14},
+      {p:36, color:"var(--danger)", label:"PROTECTED LOW\nSTOP", shift:6}
+    ],
+    candles: [
+      {o:56,h:61,l:55,c:60,t:up},
+      {o:57,h:59,l:50,c:52,t:dn},
+      {o:52,h:54,l:44,c:46,t:dn},
+      {o:46,h:48,l:36,c:42,t:"sweep"},
+      {o:42,h:50,l:40,c:49,t:up},
+      {o:49,h:61,l:47,c:59,t:"valid"},
+      {o:59,h:60,l:52,c:54,t:dn},
+      {o:54,h:64,l:53,c:63,t:up},
+      {o:63,h:74,l:62,c:72,t:up},
+      {o:72,h:82,l:70,c:80,t:up}
+    ],
+    badges: [
+      {n:1,i:3,p:36,above:false},
+      {n:2,i:5,p:61,above:true},
+      {n:3,i:6,p:43,above:false},
+      {n:4,i:9,p:82,above:true}
+    ],
+    entry: {i:6, p:52}
+  });
+
+  render("invalid", {
+    yMin: 24, yMax: 66,
+    zones: [
+      {top:47, bottom:35, fill:"var(--fvg)", line:"var(--fvg-line)", label:"4H FVG · BISI"}
+    ],
+    levels: [
+      {p:57, color:"var(--invalid)", label:"CISD 57.0\nNEVER CLOSED\nABOVE", shift:-12},
+      {p:40, color:"var(--muted)",   label:"PREV LOW\nSELL-SIDE LIQ.", shift:-14},
+      {p:36, color:"var(--danger)",  label:"SWEPT LOW\nFAILED", shift:8}
+    ],
+    candles: [
+      {o:56,h:61,l:55,c:60,t:up},
+      {o:57,h:59,l:50,c:52,t:dn},
+      {o:52,h:54,l:44,c:46,t:dn},
+      {o:46,h:48,l:36,c:42,t:"sweep"},
+      {o:42,h:52,l:41,c:50,t:up},
+      {o:50,h:58,l:46,c:48,t:"inv"},
+      {o:48,h:51,l:42,c:44,t:"inv"},
+      {o:44,h:46,l:33,c:35,t:"inv"},
+      {o:35,h:37,l:27,c:29,t:"inv"}
+    ],
+    badges: [
+      {n:1,i:3,p:36,above:false},
+      {n:2,i:5,p:58,above:true},
+      {n:3,i:7,p:33,above:false}
+    ]
+  });
+})();
+</script>

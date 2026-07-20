@@ -1,0 +1,242 @@
+//@version=6
+// ─────────────────────────────────────────────────────────────────────────────
+// ICT Model — Liquidity Sweep + CISD + HTF FVG + Order Block
+//
+// Implements the 4-pillar model:
+//   1. Sweep of Liquidity  — price wicks through a prior swing low/high (stops)
+//   2. HTF Fair Value Gaps — 4H BISI/SIBI drawn on any chart for HTF context
+//   3. CISD                — a close through the opens of the candle series
+//                            that performed the sweep (state-of-delivery shift)
+//   4. Order Block         — once CISD confirms, the sweep series becomes the
+//                            entry zone (box), stop = protected low/high
+//
+// Candle coloring:
+//   ORANGE = sweep candle (setup armed, waiting for CISD)
+//   GREEN  = valid bullish setup (CISD confirmed by close above)
+//   RED    = valid bearish setup (CISD confirmed by close below)
+//   GRAY   = invalid setup (no CISD in time, or close through the swept level)
+// ─────────────────────────────────────────────────────────────────────────────
+indicator("ICT Model — Sweep + CISD + HTF FVG + Order Block", "ICT Sweep/CISD/OB",
+     overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ─────────────────────────── Inputs ───────────────────────────
+grpS = "Setup logic"
+swingLen = input.int(5,  "Swing pivot strength (bars each side)", minval = 2,  group = grpS,
+     tooltip = "A swing low/high needs this many higher-lows / lower-highs on each side. Its stops are the liquidity pool.")
+maxWait  = input.int(20, "Max bars after sweep to confirm CISD",  minval = 1,  group = grpS,
+     tooltip = "If price does not close through the CISD level within this many bars, the setup is marked invalid.")
+chainMax = input.int(30, "Max candles scanned for the CISD chain", minval = 3, group = grpS)
+
+grpH = "Higher-timeframe context"
+htfTf        = input.timeframe("240",  "HTF for Fair Value Gaps", group = grpH,
+     tooltip = "Default 240 = 4-hour, per the model. FVGs from this timeframe are drawn on your chart.")
+showFvg      = input.bool(true,  "Show HTF FVGs (BISI = teal, SIBI = maroon)", group = grpH)
+useHtfFilter = input.bool(false, "Only validate setups whose sweep happens inside an HTF FVG", group = grpH)
+
+grpV = "Visuals"
+showOb    = input.bool(true, "Draw order block after CISD confirms", group = grpV)
+showStop  = input.bool(true, "Draw protected low/high (stop) line",  group = grpV)
+obBars    = input.int(20, "Extend order block / stop line (bars)", minval = 5, group = grpV)
+colSweep  = input.color(color.orange, "Sweep candle",               group = grpV)
+colBull   = input.color(#00c853,      "Valid bullish CISD candle",  group = grpV)
+colBear   = input.color(#ff1744,      "Valid bearish CISD candle",  group = grpV)
+colDead   = input.color(color.gray,   "Invalid setup candle",       group = grpV)
+
+// ─────────────────── HTF Fair Value Gaps (BISI / SIBI) ───────────────────
+// Values of the last COMPLETED HTF bars (offset [1]/[3]) so boxes don't repaint.
+[htfH3, htfL3, htfH1, htfL1] = request.security(syminfo.tickerid, htfTf,
+     [high[3], low[3], high[1], low[1]], lookahead = barmerge.lookahead_off)
+newHtfBar = timeframe.change(htfTf)
+
+var array<box> bisiBoxes = array.new<box>()   // bullish gaps (support)
+var array<box> sibiBoxes = array.new<box>()   // bearish gaps (resistance)
+
+if showFvg and newHtfBar and barstate.isconfirmed
+    // BISI: low of completed HTF bar sits above the high two HTF bars before it
+    if htfL1 > htfH3
+        array.push(bisiBoxes, box.new(bar_index, htfL1, bar_index, htfH3,
+             border_color = color.new(color.teal, 55), bgcolor = color.new(color.teal, 85),
+             extend = extend.right, text = "4H BISI", text_color = color.new(color.teal, 40),
+             text_size = size.tiny, text_halign = text.align_right))
+    // SIBI: high of completed HTF bar sits below the low two HTF bars before it
+    if htfH1 < htfL3
+        array.push(sibiBoxes, box.new(bar_index, htfL3, bar_index, htfH1,
+             border_color = color.new(color.maroon, 55), bgcolor = color.new(color.maroon, 85),
+             extend = extend.right, text = "4H SIBI", text_color = color.new(color.maroon, 40),
+             text_size = size.tiny, text_halign = text.align_right))
+
+// Stop extending a gap once price closes through the far side (fully rebalanced)
+prune(array<box> boxes, bool bullishGap) =>
+    if array.size(boxes) > 0
+        for i = array.size(boxes) - 1 to 0
+            b = array.get(boxes, i)
+            filled = bullishGap ? close < box.get_bottom(b) : close > box.get_top(b)
+            if filled
+                box.set_extend(b, extend.none)
+                box.set_right(b, bar_index)
+                array.remove(boxes, i)
+    if array.size(boxes) > 15
+        box.delete(array.shift(boxes))
+
+prune(bisiBoxes, true)
+prune(sibiBoxes, false)
+
+insideGaps(array<box> boxes, float px) =>
+    bool ok = false
+    for b in boxes
+        if px <= box.get_top(b) and px >= box.get_bottom(b)
+            ok := true
+    ok
+
+// ─────────────────────────── Swing liquidity ───────────────────────────
+var float lastPivLow  = na   // sell-side liquidity resting below
+var float lastPivHigh = na   // buy-side liquidity resting above
+pl = ta.pivotlow(low, swingLen, swingLen)
+ph = ta.pivothigh(high, swingLen, swingLen)
+if not na(pl)
+    lastPivLow := pl
+if not na(ph)
+    lastPivHigh := ph
+
+// CISD level = open of the FIRST candle in the most recent run of down-closes
+// (for a bullish setup) or up-closes (for a bearish setup).
+chainBull() =>
+    int i = 0
+    while i < chainMax and close[i] >= open[i]
+        i += 1
+    float lvl = na
+    int j = i
+    while j < chainMax and close[j] < open[j]
+        lvl := open[j]
+        j += 1
+    [lvl, j - 1]
+
+chainBear() =>
+    int i = 0
+    while i < chainMax and close[i] <= open[i]
+        i += 1
+    float lvl = na
+    int j = i
+    while j < chainMax and close[j] > open[j]
+        lvl := open[j]
+        j += 1
+    [lvl, j - 1]
+
+// ─────────────────────── Setup state machines ───────────────────────
+// state 0 = idle · 1 = liquidity swept, waiting for CISD close
+var int   bullState = 0
+var float bullSweptLow = na, var float bullCisd = na
+var int   bullSweepBar = na, var int  bullChainStart = na
+var bool  bullHtfOk = false
+
+var int   bearState = 0
+var float bearSweptHigh = na, var float bearCisd = na
+var int   bearSweepBar = na,  var int  bearChainStart = na
+var bool  bearHtfOk = false
+
+bool bullSweepNow = false, bool bullValidNow = false, bool bullFailNow = false
+bool bearSweepNow = false, bool bearValidNow = false, bool bearFailNow = false
+
+// ---- Bullish: sweep of sell-side liquidity → CISD close ABOVE ----
+if bullState == 0 and not na(lastPivLow) and low < lastPivLow
+    [lvl, off] = chainBull()
+    if not na(lvl) and lvl > low
+        bullState      := 1
+        bullSweptLow   := low
+        bullCisd       := lvl
+        bullSweepBar   := bar_index
+        bullChainStart := bar_index - off
+        bullHtfOk      := insideGaps(bisiBoxes, low)
+        bullSweepNow   := true
+    lastPivLow := na                                  // pool consumed
+else if bullState == 1
+    if close > bullCisd and (not useHtfFilter or bullHtfOk)
+        bullValidNow := true
+        bullState    := 0
+    else if close < bullSweptLow or bar_index - bullSweepBar > maxWait
+        bullFailNow := true
+        bullState   := 0
+    else
+        bullSweptLow := math.min(bullSweptLow, low)   // sweep may extend deeper
+
+// ---- Bearish: sweep of buy-side liquidity → CISD close BELOW ----
+if bearState == 0 and not na(lastPivHigh) and high > lastPivHigh
+    [lvl, off] = chainBear()
+    if not na(lvl) and lvl < high
+        bearState      := 1
+        bearSweptHigh  := high
+        bearCisd       := lvl
+        bearSweepBar   := bar_index
+        bearChainStart := bar_index - off
+        bearHtfOk      := insideGaps(sibiBoxes, high)
+        bearSweepNow   := true
+    lastPivHigh := na
+else if bearState == 1
+    if close < bearCisd and (not useHtfFilter or bearHtfOk)
+        bearValidNow := true
+        bearState    := 0
+    else if close > bearSweptHigh or bar_index - bearSweepBar > maxWait
+        bearFailNow := true
+        bearState   := 0
+    else
+        bearSweptHigh := math.max(bearSweptHigh, high)
+
+// ─────────────────── Order block + stop after CISD ───────────────────
+if bullValidNow
+    if showOb
+        box.new(bullChainStart, bullCisd, bar_index + obBars, bullSweptLow,
+             border_color = color.new(colBull, 40), bgcolor = color.new(colBull, 82),
+             text = "OB — long entry zone", text_color = color.new(colBull, 20), text_size = size.tiny)
+    if showStop
+        line.new(bullSweepBar, bullSweptLow, bar_index + obBars, bullSweptLow,
+             color = colBear, style = line.style_dashed)
+        label.new(bar_index + obBars, bullSweptLow, "Protected low — SL",
+             style = label.style_label_left, color = color.new(colBear, 80),
+             textcolor = colBear, size = size.small)
+    label.new(bar_index, high, "CISD ✓", style = label.style_label_down,
+         color = color.new(colBull, 20), textcolor = color.white, size = size.small)
+
+if bearValidNow
+    if showOb
+        box.new(bearChainStart, bearSweptHigh, bar_index + obBars, bearCisd,
+             border_color = color.new(colBear, 40), bgcolor = color.new(colBear, 82),
+             text = "OB — short entry zone", text_color = color.new(colBear, 20), text_size = size.tiny)
+    if showStop
+        line.new(bearSweepBar, bearSweptHigh, bar_index + obBars, bearSweptHigh,
+             color = colBear, style = line.style_dashed)
+        label.new(bar_index + obBars, bearSweptHigh, "Protected high — SL",
+             style = label.style_label_left, color = color.new(colBear, 80),
+             textcolor = colBear, size = size.small)
+    label.new(bar_index, low, "CISD ✓", style = label.style_label_up,
+         color = color.new(colBear, 20), textcolor = color.white, size = size.small)
+
+if bullFailNow
+    label.new(bar_index, low, "✗ no CISD", style = label.style_label_up,
+         color = color.new(colDead, 60), textcolor = colDead, size = size.tiny)
+if bearFailNow
+    label.new(bar_index, high, "✗ no CISD", style = label.style_label_down,
+         color = color.new(colDead, 60), textcolor = colDead, size = size.tiny)
+
+// ─────────────────────────── Candle coloring ───────────────────────────
+barcolor(bullSweepNow or bearSweepNow ? colSweep :
+     bullValidNow ? colBull :
+     bearValidNow ? colBear :
+     bullFailNow or bearFailNow ? colDead : na)
+
+plotshape(bullSweepNow, "Sell-side sweep", shape.triangleup,   location.belowbar, colSweep, size = size.tiny)
+plotshape(bearSweepNow, "Buy-side sweep",  shape.triangledown, location.abovebar, colSweep, size = size.tiny)
+
+// ─────────────────────────── Legend ───────────────────────────
+var table lg = table.new(position.top_right, 2, 5, border_width = 1,
+     bgcolor = color.new(color.black, 60), border_color = color.new(color.gray, 70))
+if barstate.islast
+    table.cell(lg, 0, 0, "■", text_color = colSweep), table.cell(lg, 1, 0, "Liquidity sweep",          text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 1, "■", text_color = colBull),  table.cell(lg, 1, 1, "Valid bullish (CISD ✓)",   text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 2, "■", text_color = colBear),  table.cell(lg, 1, 2, "Valid bearish (CISD ✓)",   text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 3, "■", text_color = colDead),  table.cell(lg, 1, 3, "Invalid (no CISD)",        text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(lg, 0, 4, "■", text_color = color.teal), table.cell(lg, 1, 4, "4H FVG (BISI/SIBI)",     text_color = color.white, text_size = size.tiny, text_halign = text.align_left)
+
+// ─────────────────────────── Alerts ───────────────────────────
+alertcondition(bullSweepNow or bearSweepNow, "Liquidity sweep",      "Liquidity sweep — watch for CISD")
+alertcondition(bullValidNow,                 "Bullish CISD (valid)", "Bullish CISD confirmed — order block formed, look for retest long")
+alertcondition(bearValidNow,                 "Bearish CISD (valid)", "Bearish CISD confirmed — order block formed, look for retest short")
