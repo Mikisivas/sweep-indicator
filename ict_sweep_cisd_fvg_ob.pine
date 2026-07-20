@@ -46,6 +46,10 @@ rrTarget  = input.float(2.0, "Reward:risk (TP when fixed, or fallback)", minval 
 showCard  = input.bool(true, "Show plain-language trade card", group = grpT)
 
 grpV = "Visuals"
+maxKeep   = input.int(3, "Keep only the last N setups on the chart", minval = 1, maxval = 30, group = grpV,
+     tooltip = "Older entry/stop/target drawings are deleted automatically so the chart stays clean. Use 1 to show only the current setup.")
+showInvLbl = input.bool(false, "Show '✗ no CISD' labels on failed setups", group = grpV,
+     tooltip = "Off by default — the gray candle already marks an invalid setup. Turn on for debugging.")
 showOb    = input.bool(false, "Also shade the order block zone", group = grpV)
 obBars    = input.int(24, "Extend trade lines / zone (bars)", minval = 5, group = grpV)
 colSweep  = input.color(color.orange, "Sweep candle",               group = grpV)
@@ -102,11 +106,52 @@ insideGaps(array<box> boxes, float px) =>
             ok := true
     ok
 
+// ── Drawing bookkeeping: keep only the last `maxKeep` setups on the chart ──
+// Each setup's drawings are tagged with a group id; old groups are deleted.
+var array<line>  tLines    = array.new<line>()
+var array<int>   tLineGrp  = array.new<int>()
+var array<label> tLabels   = array.new<label>()
+var array<int>   tLabelGrp = array.new<int>()
+var array<box>   tBoxes    = array.new<box>()
+var array<int>   tBoxGrp   = array.new<int>()
+var int          grpId     = 0
+
+regLine(line l, int g) =>
+    array.push(tLines, l)
+    array.push(tLineGrp, g)
+regLabel(label lb, int g) =>
+    array.push(tLabels, lb)
+    array.push(tLabelGrp, g)
+regBox(box bx, int g) =>
+    array.push(tBoxes, bx)
+    array.push(tBoxGrp, g)
+
+pruneTrades(int keep, int g) =>
+    minGrp = g - keep + 1
+    if array.size(tLines) > 0
+        for i = array.size(tLines) - 1 to 0
+            if array.get(tLineGrp, i) < minGrp
+                line.delete(array.get(tLines, i))
+                array.remove(tLines, i)
+                array.remove(tLineGrp, i)
+    if array.size(tLabels) > 0
+        for i = array.size(tLabels) - 1 to 0
+            if array.get(tLabelGrp, i) < minGrp
+                label.delete(array.get(tLabels, i))
+                array.remove(tLabels, i)
+                array.remove(tLabelGrp, i)
+    if array.size(tBoxes) > 0
+        for i = array.size(tBoxes) - 1 to 0
+            if array.get(tBoxGrp, i) < minGrp
+                box.delete(array.get(tBoxes, i))
+                array.remove(tBoxes, i)
+                array.remove(tBoxGrp, i)
+
 // Draw one exact price level: a solid line + a right-side label showing role & price
-f_level(int x1, float p, string role, color c) =>
-    line.new(x1, p, bar_index + obBars, p, color = c, width = 2)
-    label.new(bar_index + obBars, p, role + "  " + str.tostring(p, format.mintick),
-         style = label.style_label_left, color = color.new(c, 82), textcolor = c, size = size.normal)
+f_level(int x1, float p, string role, color c, int g) =>
+    regLine(line.new(x1, p, bar_index + obBars, p, color = c, width = 2), g)
+    regLabel(label.new(bar_index + obBars, p, role + "  " + str.tostring(p, format.mintick),
+         style = label.style_label_left, color = color.new(c, 82), textcolor = c, size = size.normal), g)
 
 // ─────────────────────────── Swing liquidity ───────────────────────────
 var float lastPivLow  = na   // sell-side liquidity resting below
@@ -214,6 +259,7 @@ else if bearState == 1
 // ─────────────────── Exact ENTRY / STOP / TARGET after CISD ───────────────────
 // Beginner mode: one precise price for each, plus a plain-language trade card.
 if bullValidNow
+    grpId += 1
     // exact entry: near edge of the order block, or its 50% mean threshold
     float entry = entryMode == "Order block edge (safer fill)" ? bullCisd : math.avg(bullCisd, bullSweptLow)
     float stop  = bullSweptLow                                   // just under the protected low
@@ -224,27 +270,29 @@ if bullValidNow
     float rr    = risk > 0 ? (tp - entry) / risk : na
 
     if showOb
-        box.new(bullChainStart, bullCisd, bar_index + obBars, bullSweptLow,
-             border_color = color.new(colBull, 55), bgcolor = color.new(colBull, 90))
+        regBox(box.new(bullChainStart, bullCisd, bar_index + obBars, bullSweptLow,
+             border_color = color.new(colBull, 55), bgcolor = color.new(colBull, 90)), grpId)
     if showTrade
-        f_level(bullSweepBar, tp,    "TAKE PROFIT", colBull)
-        f_level(bullSweepBar, entry, "ENTRY",       colEntry)
-        f_level(bullSweepBar, stop,  "STOP",        colBear)
+        f_level(bullSweepBar, tp,    "TAKE PROFIT", colBull, grpId)
+        f_level(bullSweepBar, entry, "ENTRY",       colEntry, grpId)
+        f_level(bullSweepBar, stop,  "STOP",        colBear, grpId)
     if showCard
-        label.new(bullSweepBar, stop,
+        regLabel(label.new(bullSweepBar, stop,
              "▲ LONG\nEntry  " + str.tostring(entry, format.mintick) +
              "\nStop   " + str.tostring(stop, format.mintick) +
              "\nTarget " + str.tostring(tp, format.mintick) +
              "\nR:R    " + str.tostring(rr, "#.0#"),
              style = label.style_label_up, color = color.new(colEntry, 12),
-             textcolor = color.white, size = size.small, textalign = text.align_left)
-    label.new(bar_index, high, "CISD ✓", style = label.style_label_down,
-         color = color.new(colBull, 20), textcolor = color.white, size = size.small)
+             textcolor = color.white, size = size.small, textalign = text.align_left), grpId)
+    regLabel(label.new(bar_index, high, "CISD ✓", style = label.style_label_down,
+         color = color.new(colBull, 20), textcolor = color.white, size = size.small), grpId)
+    pruneTrades(maxKeep, grpId)
     alert("LONG setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
 
 if bearValidNow
+    grpId += 1
     float entry = entryMode == "Order block edge (safer fill)" ? bearCisd : math.avg(bearSweptHigh, bearCisd)
     float stop  = bearSweptHigh                                  // just above the protected high
     float risk  = stop - entry
@@ -253,30 +301,31 @@ if bearValidNow
     float rr    = risk > 0 ? (entry - tp) / risk : na
 
     if showOb
-        box.new(bearChainStart, bearSweptHigh, bar_index + obBars, bearCisd,
-             border_color = color.new(colBear, 55), bgcolor = color.new(colBear, 90))
+        regBox(box.new(bearChainStart, bearSweptHigh, bar_index + obBars, bearCisd,
+             border_color = color.new(colBear, 55), bgcolor = color.new(colBear, 90)), grpId)
     if showTrade
-        f_level(bearSweepBar, stop,  "STOP",        colBear)
-        f_level(bearSweepBar, entry, "ENTRY",       colEntry)
-        f_level(bearSweepBar, tp,    "TAKE PROFIT", colBull)
+        f_level(bearSweepBar, stop,  "STOP",        colBear, grpId)
+        f_level(bearSweepBar, entry, "ENTRY",       colEntry, grpId)
+        f_level(bearSweepBar, tp,    "TAKE PROFIT", colBull, grpId)
     if showCard
-        label.new(bearSweepBar, stop,
+        regLabel(label.new(bearSweepBar, stop,
              "▼ SHORT\nEntry  " + str.tostring(entry, format.mintick) +
              "\nStop   " + str.tostring(stop, format.mintick) +
              "\nTarget " + str.tostring(tp, format.mintick) +
              "\nR:R    " + str.tostring(rr, "#.0#"),
              style = label.style_label_down, color = color.new(colEntry, 12),
-             textcolor = color.white, size = size.small, textalign = text.align_left)
-    label.new(bar_index, low, "CISD ✓", style = label.style_label_up,
-         color = color.new(colBear, 20), textcolor = color.white, size = size.small)
+             textcolor = color.white, size = size.small, textalign = text.align_left), grpId)
+    regLabel(label.new(bar_index, low, "CISD ✓", style = label.style_label_up,
+         color = color.new(colBear, 20), textcolor = color.white, size = size.small), grpId)
+    pruneTrades(maxKeep, grpId)
     alert("SHORT setup confirmed. Entry " + str.tostring(entry, format.mintick) +
          ", Stop " + str.tostring(stop, format.mintick) +
          ", Take profit " + str.tostring(tp, format.mintick), alert.freq_once_per_bar)
 
-if bullFailNow
+if showInvLbl and bullFailNow
     label.new(bar_index, low, "✗ no CISD", style = label.style_label_up,
          color = color.new(colDead, 60), textcolor = colDead, size = size.tiny)
-if bearFailNow
+if showInvLbl and bearFailNow
     label.new(bar_index, high, "✗ no CISD", style = label.style_label_down,
          color = color.new(colDead, 60), textcolor = colDead, size = size.tiny)
 

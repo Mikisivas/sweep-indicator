@@ -65,7 +65,11 @@ Alerts fire with the actual entry / stop / take-profit numbers filled in.
 - **Exact entry price** — order-block 50% (mean threshold) or the order-block edge.
 - **Take profit target** — opposing liquidity or a fixed reward:risk.
 - **Reward:risk** — the multiple used for TP when fixed, or as a fallback (default 2.0).
+- **Keep only the last N setups** — older entry/stop/target drawings are deleted automatically to keep the chart clean (default 3; use 1 to show only the current setup).
+- **Show '✗ no CISD' labels** — off by default; the gray candle already marks invalid setups.
 - Colors, trade-line drawing, the trade card, and the optional order-block zone are all configurable.
+
+> **Keeping the chart clean:** run it on the **15-minute** chart (the model's timeframe) — lower timeframes such as 1m generate far too many setups. The "keep only the last N setups" limit then keeps the drawings tidy.
 
 Alerts are included for sweeps, bullish CISD confirmations, and bearish CISD confirmations.
 
