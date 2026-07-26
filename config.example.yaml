@@ -1,0 +1,113 @@
+# ICT Sweep + CISD bot - example configuration
+# Copy to config.yaml and edit. Every key is optional; anything omitted uses the
+# default shown here. Keep credentials in environment variables, not in this file:
+#   ICT_MT5__LOGIN, ICT_MT5__PASSWORD, ICT_MT5__SERVER,
+#   ICT_NOTIFY__TELEGRAM_BOT_TOKEN, ICT_NOTIFY__DISCORD_WEBHOOK
+# Any field can be overridden the same way: ICT_<SECTION>__<FIELD>.
+
+mt5:
+  # Path to terminal64.exe. Leave blank to attach to an already-running terminal.
+  terminal_path: ""
+  # login/password/server: prefer the env vars above.
+  symbol: UT100              # exact Market Watch name; brokers may suffix it
+  exec_timeframe: M15        # execution timeframe
+  htf_timeframe: H4          # higher-timeframe FVG context (the model's 4H)
+  history_bars: 1500         # replayed on startup to rebuild engine state
+  htf_history_bars: 400
+  magic: 990411              # the bot only ever touches trades with this magic
+  deviation_points: 20       # slippage allowance on market orders
+  server_utc_offset_hours:   # blank = auto-detect from a live tick
+
+strategy:
+  swing_len: 5               # pivot strength, bars each side
+  max_wait: 20               # bars a sweep may wait for its CISD
+  chain_max: 30              # candles scanned for the CISD chain
+  entry_mode: ob_mean_threshold   # ob_mean_threshold | ob_edge
+  # NO RETEST: enter at market the moment CISD confirms. This is the whole point.
+  # limit_at_ob rests an order at the block instead - it will miss the runners.
+  entry_trigger: market_on_cisd   # market_on_cisd | limit_at_ob
+  limit_expiry_bars: 6            # limit_at_ob only
+  tp_mode: opposing_liquidity     # opposing_liquidity | fixed_rr
+  rr_target: 2.0                  # used by fixed_rr, and as the fallback
+  require_sweep_in_htf_fvg: false # true = only sweeps inside a 4H FVG may trade
+  min_rr: 1.0                     # skip confirmations with a worse reward:risk
+  max_stop_points: 0              # 0 = no cap (UT100 points, e.g. 150 = 150 index points)
+  min_stop_points: 0
+
+risk:
+  risk_pct: 1.0              # % of equity risked per trade
+  max_positions: 1
+  one_per_direction: true
+  daily_max_loss_pct: 3.0    # kill switch for the broker day
+  daily_max_trades: 0        # 0 = unlimited
+  max_spread_points: 60      # UT100 floats; skip entries when it blows out
+  margin_buffer: 0.5         # required margin must fit in 50% of free margin
+  close_on_opposite_signal: false
+
+session:
+  # Broker SERVER time, not your local time. Disabled by default: the index CFD
+  # trades nearly around the clock and the model works outside the cash session.
+  enabled: false
+  windows: ["09:30-16:00"]
+  weekdays: [0, 1, 2, 3, 4]  # 0 = Monday
+
+news:
+  enabled: true
+  minutes_before: 5          # blackout starts 5 min before the release
+  minutes_after: 5           # and ends 5 min after it
+  impacts: ["high"]          # high | medium | low
+  currencies: ["USD"]        # UT100 is a US index: USD events are what move it
+  source: csv                # csv | ics | http_json | none
+  path: calendar/events.csv
+  url: ""                    # http_json only
+  http_field_map:
+    time: date
+    currency: country
+    impact: impact
+    title: title
+  refresh_minutes: 60
+  max_stale_minutes: 720     # a cache older than this counts as no feed at all
+  on_feed_unavailable: block # block = fail safe (recommended) | allow
+  flatten_before_event: false
+  flatten_minutes_before: 2.0
+
+notify:
+  telegram_bot_token: ""     # prefer ICT_NOTIFY__TELEGRAM_BOT_TOKEN
+  telegram_chat_id: ""
+  discord_webhook: ""
+  notify_entries: true
+  notify_exits: true
+  notify_blocks: false
+
+runtime:
+  mode: paper                # backtest | paper | live
+  allow_live_trading: false  # live ALSO needs the --i-understand-live flag
+  poll_seconds: 5.0
+  state_file: state/ict_bot_state.json
+  log_file: logs/ict_bot.log
+  log_level: INFO
+  signals_csv: logs/signals.csv
+
+backtest:
+  bars: 20000
+  from_date: ""              # YYYY-MM-DD
+  to_date: ""
+  spread_points: 20          # modelled cost, charged against entries
+  slippage_points: 5
+  commission_per_lot: 0.0
+  start_equity: 10000.0
+  csv_path: ""               # offline OHLC instead of the terminal
+  htf_csv_path: ""
+  report_csv: logs/backtest_trades.csv
+  apply_session_filter: true
+  apply_news_filter: true
+  # Contract specs for OFFLINE runs only. With a terminal attached the real values
+  # are read from it and these are ignored.
+  spec_digits: 2
+  spec_point: 0.01
+  spec_tick_size: 0.01
+  spec_tick_value: 0.01
+  spec_contract_size: 1.0
+  spec_volume_min: 0.01
+  spec_volume_step: 0.01
+  spec_volume_max: 100.0

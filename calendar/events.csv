@@ -1,0 +1,11 @@
+datetime_utc,currency,impact,title
+# Times are UTC. Keep this file current - the bot blocks entries 5 minutes either
+# side of every row whose impact and currency are in scope, and (by default)
+# refuses to enter at all if the file is missing or older than max_stale_minutes.
+# Typical US releases: CPI/PPI/NFP at 13:30 UTC (08:30 ET), FOMC at 19:00 UTC.
+2026-08-07T12:30:00Z,USD,high,Non-Farm Payrolls
+2026-08-12T12:30:00Z,USD,high,CPI m/m
+2026-08-13T12:30:00Z,USD,high,PPI m/m
+2026-08-19T18:00:00Z,USD,high,FOMC Statement and Rate Decision
+2026-08-19T18:30:00Z,USD,high,FOMC Press Conference
+2026-08-28T12:30:00Z,USD,high,Core PCE Price Index m/m

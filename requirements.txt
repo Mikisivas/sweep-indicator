@@ -1,0 +1,10 @@
+# Live / paper trading (Windows, with a running MT5 terminal)
+MetaTrader5>=5.0.45
+numpy>=1.24            # required by the MetaTrader5 package for rate arrays
+
+# Configuration
+PyYAML>=6.0
+
+# Nothing else. The strategy, risk, news and backtest layers are pure stdlib, so
+# they run and can be tested on any platform:
+#   python -m unittest discover -s tests -t tests
