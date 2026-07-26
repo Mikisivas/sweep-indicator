@@ -43,12 +43,17 @@ pip install -r requirements.txt
 cp config.example.yaml config.yaml
 ```
 
-Credentials belong in environment variables, never in the YAML:
+Leave `mt5.login` / `password` / `server` blank and the bot attaches to whichever
+account your terminal is already logged into — no credentials on disk at all. That
+is the recommended setup.
 
-```bat
-set ICT_MT5__LOGIN=12345678
-set ICT_MT5__PASSWORD=your-password
-set ICT_MT5__SERVER=MEXAtlantic-Real
+If you do want the bot to log in itself, pass them through the environment
+(PowerShell syntax — `set NAME=value` is cmd.exe and does nothing here):
+
+```powershell
+$env:ICT_MT5__LOGIN="12345678"
+$env:ICT_MT5__PASSWORD="your-password"
+$env:ICT_MT5__SERVER="MEXAtlantic-Demo"
 ```
 
 Any setting can be overridden the same way: `ICT_<SECTION>__<FIELD>`, e.g.
@@ -198,7 +203,7 @@ ict_bot/
   runner.py            live/paper loop
   backtest.py          simulation + metrics
   cli.py               entry point
-tests/                 122 tests, no MT5 required
+tests/                 143 tests, no MT5 required
 docs/indicator_parity.md
 ```
 
@@ -218,6 +223,8 @@ closed bars, mirroring `barstate.isconfirmed` and the indicator's completed-HTF-
 logic. On startup, history is replayed through the engine to rebuild state, but
 **no orders are placed from replayed bars** — a confirmation that fired while the
 bot was down is skipped, because its market-on-close entry price is long gone.
+
+Step-by-step setup instructions live in [`RUNBOOK.md`](RUNBOOK.md).
 
 See [`docs/indicator_parity.md`](docs/indicator_parity.md) for the full mapping,
 including one subtle ordering detail that parity depends on.

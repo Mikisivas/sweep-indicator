@@ -1,0 +1,46 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "1. Check (connection + specs + clock + calendar)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ict_bot",
+      "args": ["--config", "config.yaml", "--mode", "check"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
+      "name": "2. Backtest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ict_bot",
+      "args": ["--config", "config.yaml", "--mode", "backtest", "--bars", "5000"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
+      "name": "3. Signals (parity dump vs the indicator)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ict_bot",
+      "args": ["--config", "config.yaml", "--mode", "signals",
+               "--out", "logs/parity.csv", "--bars", "5000"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    },
+    {
+      "name": "4. Paper trade (DEMO account)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ict_bot",
+      "args": ["--config", "config.yaml", "--mode", "paper"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    }
+  ]
+}

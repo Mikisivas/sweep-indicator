@@ -15,5 +15,4 @@ calendar/*.csv
 !calendar/events.csv
 
 .idea/
-.vscode/
 .DS_Store
