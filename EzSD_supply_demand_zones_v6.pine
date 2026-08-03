@@ -1,0 +1,379 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © mikisivas
+//
+// Detection concept (volume-filtered pivot levels) inspired by ChartPrime's
+// "Support and Resistance (High Volume Boxes)" — MPL-2.0.
+// Rewritten for Pine Script v6: multi-timeframe engine, delta-volume impulse
+// confirmation, UDT/method based zone objects, right-edge price tags.
+
+//@version=6
+indicator("EzSD — Supply & Demand Zones [MTF]", "EzSD V.6", overlay = true,
+     max_boxes_count = 500, max_labels_count = 500, dynamic_requests = true)
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝙄𝙉𝙋𝙐𝙏𝙎
+// ---------------------------------------------------------------------------------------------------------------------{
+const string G_ENG = "Detection Engine"
+const string G_T1  = "Timeframe 1"
+const string G_T2  = "Timeframe 2"
+const string G_T3  = "Timeframe 3"
+const string G_EXT = "Extras"
+
+// ── Engine ───────────────────────────────────────────────────────────────────
+string zoneMode  = input.string("ATR", "Zone Height", options = ["ATR", "Candle Wick", "Percent"], group = G_ENG,
+     tooltip = "ATR        — every zone is ATR × multiplier thick (uniform look).\nCandle Wick — zone spans the wick of the origin candle.\nPercent    — zone is a % of price.")
+float  zoneMult  = input.float(0.5, "Height Multiplier", minval = 0.05, maxval = 50, step = 0.05, group = G_ENG)
+int    atrLen    = input.int(200, "ATR Length", minval = 1, group = G_ENG)
+
+bool   useVol    = input.bool(true, "Volume Confirmation", group = G_ENG,
+     tooltip = "A pivot only becomes a zone when the move AWAY from it is an impulse: above-average volume and a one-sided delta.")
+int    volLen    = input.int(20, "Volume Baseline", minval = 1, group = G_ENG)
+float  volMult   = input.float(1.0, "Impulse Volume × Average", minval = 0.1, maxval = 10, step = 0.1, group = G_ENG)
+float  imbMin    = input.float(0.25, "Minimum Delta Imbalance", minval = 0, maxval = 1, step = 0.05, group = G_ENG,
+     tooltip = "|buy vol − sell vol| ÷ total vol of the departure leg. 0.25 = at least 25% one-sided.")
+
+string breakMode = input.string("Flip", "When Price Breaks a Zone", options = ["Flip", "Delete", "Fade"], group = G_ENG,
+     tooltip = "Flip   — broken supply becomes demand (and vice-versa), then dies on the second break.\nDelete — remove it.\nFade   — grey it out and stop tracking it.")
+bool   dedupe    = input.bool(true, "Replace Overlapping Zones", group = G_ENG)
+
+// ── Timeframe 1 ──────────────────────────────────────────────────────────────
+string tf1  = input.timeframe("", "TF", inline = "1a", group = G_T1)
+bool   on1  = input.bool(true, "Show", inline = "1a", group = G_T1)
+int    piv1 = input.int(5, "Pivot", minval = 1, inline = "1a", group = G_T1)
+color  sc1  = input.color(#ff1f5c, "Supply", inline = "1b", group = G_T1)
+color  dc1  = input.color(#00d3c1, "Demand", inline = "1b", group = G_T1)
+int    tr1  = input.int(88, "Fill", minval = 0, maxval = 100, inline = "1b", group = G_T1)
+int    wd1  = input.int(2, "Line", minval = 1, maxval = 4, inline = "1c", group = G_T1)
+string st1  = input.string("Dotted", "", options = ["Solid", "Dotted", "Dashed"], inline = "1c", group = G_T1)
+bool   ex1  = input.bool(true, "Extend Left", inline = "1c", group = G_T1)
+bool   lb1  = input.bool(true, "Tags", inline = "1d", group = G_T1)
+int    of1  = input.int(12, "Offset", minval = 0, maxval = 250, inline = "1d", group = G_T1)
+string ls1  = input.string("Default", "", options = ["Tiny", "Small", "Default", "Large"], inline = "1d", group = G_T1)
+int    mx1  = input.int(10, "Max", minval = 1, maxval = 50, inline = "1d", group = G_T1)
+
+// ── Timeframe 2 ──────────────────────────────────────────────────────────────
+string tf2  = input.timeframe("60", "TF", inline = "2a", group = G_T2)
+bool   on2  = input.bool(true, "Show", inline = "2a", group = G_T2)
+int    piv2 = input.int(5, "Pivot", minval = 1, inline = "2a", group = G_T2)
+color  sc2  = input.color(#ff1f5c, "Supply", inline = "2b", group = G_T2)
+color  dc2  = input.color(#00d3c1, "Demand", inline = "2b", group = G_T2)
+int    tr2  = input.int(90, "Fill", minval = 0, maxval = 100, inline = "2b", group = G_T2)
+int    wd2  = input.int(2, "Line", minval = 1, maxval = 4, inline = "2c", group = G_T2)
+string st2  = input.string("Dotted", "", options = ["Solid", "Dotted", "Dashed"], inline = "2c", group = G_T2)
+bool   ex2  = input.bool(true, "Extend Left", inline = "2c", group = G_T2)
+bool   lb2  = input.bool(true, "Tags", inline = "2d", group = G_T2)
+int    of2  = input.int(12, "Offset", minval = 0, maxval = 250, inline = "2d", group = G_T2)
+string ls2  = input.string("Default", "", options = ["Tiny", "Small", "Default", "Large"], inline = "2d", group = G_T2)
+int    mx2  = input.int(6, "Max", minval = 1, maxval = 50, inline = "2d", group = G_T2)
+
+// ── Timeframe 3 ──────────────────────────────────────────────────────────────
+string tf3  = input.timeframe("240", "TF", inline = "3a", group = G_T3)
+bool   on3  = input.bool(false, "Show", inline = "3a", group = G_T3)
+int    piv3 = input.int(5, "Pivot", minval = 1, inline = "3a", group = G_T3)
+color  sc3  = input.color(#ff1f5c, "Supply", inline = "3b", group = G_T3)
+color  dc3  = input.color(#00d3c1, "Demand", inline = "3b", group = G_T3)
+int    tr3  = input.int(92, "Fill", minval = 0, maxval = 100, inline = "3b", group = G_T3)
+int    wd3  = input.int(2, "Line", minval = 1, maxval = 4, inline = "3c", group = G_T3)
+string st3  = input.string("Dotted", "", options = ["Solid", "Dotted", "Dashed"], inline = "3c", group = G_T3)
+bool   ex3  = input.bool(true, "Extend Left", inline = "3c", group = G_T3)
+bool   lb3  = input.bool(true, "Tags", inline = "3d", group = G_T3)
+int    of3  = input.int(12, "Offset", minval = 0, maxval = 250, inline = "3d", group = G_T3)
+string ls3  = input.string("Default", "", options = ["Tiny", "Small", "Default", "Large"], inline = "3d", group = G_T3)
+int    mx3  = input.int(4, "Max", minval = 1, maxval = 50, inline = "3d", group = G_T3)
+
+// ── Extras ───────────────────────────────────────────────────────────────────
+bool mono       = input.bool(false, "Monospaced Tags", group = G_EXT)
+bool showBreaks = input.bool(false, "Break Labels", group = G_EXT)
+bool showTests  = input.bool(false, "Retest Markers", group = G_EXT)
+bool alertsOn   = input.bool(true, "Dynamic alert() Messages", group = G_EXT)
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝙃𝙀𝙇𝙋𝙀𝙍𝙎
+// ---------------------------------------------------------------------------------------------------------------------{
+// Never let a group request a timeframe lower than the chart's
+tfNorm(simple string t) =>
+    simple string want = t == "" ? timeframe.period : t
+    timeframe.in_seconds(want) < timeframe.in_seconds(timeframe.period) ? timeframe.period : want
+
+// 2700 seconds -> "45M", matches the tag format on the reference chart
+tfName(simple string t) =>
+    int s = timeframe.in_seconds(t == "" ? timeframe.period : t)
+    switch
+        s < 60      => str.tostring(s) + "S"
+        s < 3600    => str.tostring(int(s / 60)) + "M"
+        s < 86400   => str.tostring(int(s / 3600)) + "H"
+        s < 604800  => str.tostring(int(s / 86400)) + "D"
+        s < 2592000 => str.tostring(int(s / 604800)) + "W"
+        =>             str.tostring(int(s / 2592000)) + "MN"
+
+styleOf(string s) =>
+    s == "Dotted" ? line.style_dotted : s == "Dashed" ? line.style_dashed : line.style_solid
+
+sizeOf(string s) =>
+    switch s
+        "Tiny"  => size.tiny
+        "Small" => size.small
+        "Large" => size.large
+        =>         size.normal
+
+// Readable tag text on any user-picked colour
+contrast(color c) =>
+    float lum = 0.299 * color.r(c) + 0.587 * color.g(c) + 0.114 * color.b(c)
+    lum > 150 ? color.new(#08131f, 0) : color.new(color.white, 0)
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝙏𝙔𝙋𝙀𝙎
+// ---------------------------------------------------------------------------------------------------------------------{
+type Cfg
+    string tf          // resolved timeframe string
+    string name        // "45M", "1H", "4H" …
+    bool   on
+    color  sup
+    color  dem
+    int    trn
+    int    wid
+    string sty
+    bool   ext
+    bool   lab
+    int    off
+    string lsz
+    int    maxz
+
+type Zone
+    box    bx
+    label  lb
+    float  top
+    float  bot
+    bool   supply
+    bool   flipped
+    bool   tested
+    bool   dead
+
+method kill(Zone z) =>
+    z.bx.delete()
+    if not na(z.lb)
+        z.lb.delete()
+
+method tag(Zone z, Cfg cfg) =>
+    (z.flipped ? "⇄ " : "") + cfg.name + "  |  " + str.tostring(z.supply ? z.top : z.bot, format.mintick)
+
+method paint(Zone z, Cfg cfg) =>
+    color col = z.supply ? cfg.sup : cfg.dem
+    z.bx.set_bgcolor(color.new(col, cfg.trn))
+    z.bx.set_border_color(color.new(col, 10))
+    if not na(z.lb)
+        z.lb.set_y(z.supply ? z.top : z.bot)
+        z.lb.set_style(z.supply ? label.style_label_down : label.style_label_up)
+        z.lb.set_color(col)
+        z.lb.set_textcolor(contrast(col))
+        z.lb.set_text(z.tag(cfg))
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝘿𝙀𝙏𝙀𝘾𝙏𝙄𝙊𝙉  (runs inside the requested timeframe's context)
+// ---------------------------------------------------------------------------------------------------------------------{
+// A pivot alone is only a level. It becomes supply/demand when the leg that
+// LEAVES it is an impulse — above-average volume with a one-sided delta.
+// The pivot bar sits `len` bars back, so bars [0 … len-1] are that departure leg.
+zoneScan(simple int len, simple string mode, simple float mult, simple int atrl,
+         simple bool useV, simple int vlen, simple float vmult, simple float imb) =>
+    var float sTop = na
+    var float sBot = na
+    var int   sT   = na
+    var float dTop = na
+    var float dBot = na
+    var int   dT   = na
+
+    float ph = ta.pivothigh(high, len, len)
+    float pl = ta.pivotlow(low, len, len)
+
+    float atr  = ta.atr(atrl)
+    float dvol = close > open ? nz(volume) : close < open ? -nz(volume) : 0.0
+
+    float legNet = math.sum(dvol, len)          // net delta of the departure leg
+    float legVol = math.sum(nz(volume), len)    // gross volume of the departure leg
+    float base   = ta.sma(nz(volume), vlen)     // volume baseline
+
+    bool noVolData = na(volume) or nz(base[len]) == 0
+    bool skip      = not useV or noVolData
+    bool sizeOk    = legVol >= nz(base[len]) * len * vmult
+    bool imbOk     = legVol > 0 and math.abs(legNet) >= legVol * imb
+    bool sellOk    = skip or (legNet < 0 and sizeOk and imbOk)
+    bool buyOk     = skip or (legNet > 0 and sizeOk and imbOk)
+
+    float h = mode == "Percent" ? close[len] * mult / 100.0 : nz(atr[len]) * mult
+
+    if not na(ph) and sellOk
+        sTop := high[len]
+        sBot := mode == "Candle Wick" ? math.min(math.max(open[len], close[len]), sTop - h * 0.1) : sTop - h
+        sT   := time[len]
+
+    if not na(pl) and buyOk
+        dBot := low[len]
+        dTop := mode == "Candle Wick" ? math.max(math.min(open[len], close[len]), dBot + h * 0.1) : dBot + h
+        dT   := time[len]
+
+    [sTop, sBot, sT, dTop, dBot, dT]
+
+// One request per timeframe group. lookahead_off ⇒ an HTF zone only appears once
+// that HTF bar has closed, so nothing is drawn into the past that wasn't knowable.
+scan(simple string tf, simple int len) =>
+    request.security(syminfo.tickerid, tf,
+         zoneScan(len, zoneMode, zoneMult, atrLen, useVol, volLen, volMult, imbMin),
+         lookahead = barmerge.lookahead_off)
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝘿𝙍𝘼𝙒𝙄𝙉𝙂
+// ---------------------------------------------------------------------------------------------------------------------{
+addZone(Cfg cfg, array<Zone> zs, float top, float bot, int lx, bool supply) =>
+    color col = supply ? cfg.sup : cfg.dem
+
+    // Fresh level wins: drop any same-side zone it overlaps
+    if dedupe and zs.size() > 0
+        for i = zs.size() - 1 to 0
+            Zone o = zs.get(i)
+            if o.supply == supply and top >= o.bot and bot <= o.top
+                o.kill()
+                zs.remove(i)
+
+    box bx = box.new(left = lx, top = top, right = time, bottom = bot, xloc = xloc.bar_time,
+         border_color = color.new(col, 10), border_width = cfg.wid, border_style = styleOf(cfg.sty),
+         bgcolor = color.new(col, cfg.trn), extend = cfg.ext ? extend.both : extend.right)
+
+    label lbl = na
+    Zone  z   = Zone.new(bx, lbl, top, bot, supply, false, false, false)
+
+    if cfg.lab
+        z.lb := label.new(bar_index + cfg.off, supply ? top : bot, text = z.tag(cfg),
+             xloc = xloc.bar_index, yloc = yloc.price,
+             style = supply ? label.style_label_down : label.style_label_up,
+             color = col, textcolor = contrast(col), size = sizeOf(cfg.lsz),
+             text_font_family = mono ? font.family_monospace : font.family_default)
+
+    zs.push(z)
+
+    while zs.size() > cfg.maxz
+        Zone oldest = zs.shift()
+        oldest.kill()
+
+handle(Cfg cfg, array<Zone> zs, bool newS, float sTop, float sBot, int sT,
+       bool newD, float dTop, float dBot, int dT) =>
+    bool   evNew = false
+    bool   evIn  = false
+    bool   evOut = false
+    string msg   = ""
+
+    if cfg.on
+        if newS and not na(sTop) and not na(sBot)
+            addZone(cfg, zs, sTop, sBot, sT, true)
+            evNew := true
+            msg := msg + "🟥 " + cfg.name + " supply @ " + str.tostring(sTop, format.mintick) + "\n"
+        if newD and not na(dTop) and not na(dBot)
+            addZone(cfg, zs, dTop, dBot, dT, false)
+            evNew := true
+            msg := msg + "🟩 " + cfg.name + " demand @ " + str.tostring(dBot, format.mintick) + "\n"
+
+    if zs.size() > 0
+        for i = zs.size() - 1 to 0
+            Zone z       = zs.get(i)
+            bool removed = false
+
+            if not z.dead
+                bool broke  = z.supply ? close > z.top : close < z.bot
+                bool inside = high >= z.bot and low <= z.top
+
+                if broke
+                    evOut := true
+                    msg := msg + "⚡ " + cfg.name + " " + (z.supply ? "supply" : "demand") + " broken @ " +
+                         str.tostring(z.supply ? z.top : z.bot, format.mintick) + "\n"
+
+                    if showBreaks
+                        label.new(bar_index, z.supply ? z.top : z.bot,
+                             text = z.supply ? "Break ▲" : "Break ▼",
+                             style = z.supply ? label.style_label_down : label.style_label_up,
+                             color = color.new(z.supply ? cfg.dem : cfg.sup, 25),
+                             textcolor = contrast(z.supply ? cfg.dem : cfg.sup), size = size.small)
+
+                    if breakMode == "Delete" or (breakMode == "Flip" and z.flipped)
+                        z.kill()
+                        zs.remove(i)
+                        removed := true
+                    else if breakMode == "Fade"
+                        z.dead := true
+                        z.bx.set_bgcolor(color.new(color.gray, 93))
+                        z.bx.set_border_color(color.new(color.gray, 45))
+                        z.bx.set_border_style(line.style_dashed)
+                        if not na(z.lb)
+                            z.lb.delete()
+                            z.lb := na
+                    else
+                        // polarity flip: broken supply is the new demand
+                        z.supply  := not z.supply
+                        z.flipped := true
+                        z.tested  := false
+                        z.paint(cfg)
+
+                else if inside and not z.tested
+                    z.tested := true
+                    evIn     := true
+                    msg := msg + "🎯 " + cfg.name + " " + (z.supply ? "supply" : "demand") + " tested @ " +
+                         str.tostring(z.supply ? z.top : z.bot, format.mintick) + "\n"
+
+                    if showTests
+                        label.new(bar_index, z.supply ? z.top : z.bot, text = "◆",
+                             style = label.style_none, textcolor = z.supply ? cfg.sup : cfg.dem,
+                             size = size.tiny,
+                             yloc = z.supply ? yloc.abovebar : yloc.belowbar)
+
+            // Keep every tag pinned to the right edge of the chart
+            if not removed and barstate.islast and not na(z.lb)
+                z.lb.set_x(bar_index + cfg.off)
+
+    [evNew, evIn, evOut, msg]
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝙒𝙄𝙍𝙄𝙉𝙂
+// ---------------------------------------------------------------------------------------------------------------------{
+TF1 = tfNorm(tf1)
+TF2 = tfNorm(tf2)
+TF3 = tfNorm(tf3)
+
+var Cfg cfg1 = Cfg.new(TF1, tfName(TF1), on1, sc1, dc1, tr1, wd1, st1, ex1, lb1, of1, ls1, mx1)
+var Cfg cfg2 = Cfg.new(TF2, tfName(TF2), on2, sc2, dc2, tr2, wd2, st2, ex2, lb2, of2, ls2, mx2)
+var Cfg cfg3 = Cfg.new(TF3, tfName(TF3), on3, sc3, dc3, tr3, wd3, st3, ex3, lb3, of3, ls3, mx3)
+
+var array<Zone> zs1 = array.new<Zone>()
+var array<Zone> zs2 = array.new<Zone>()
+var array<Zone> zs3 = array.new<Zone>()
+
+[s1t, s1b, s1x, d1t, d1b, d1x] = scan(TF1, piv1)
+[s2t, s2b, s2x, d2t, d2b, d2x] = scan(TF2, piv2)
+[s3t, s3b, s3x, d3t, d3b, d3x] = scan(TF3, piv3)
+
+// A zone is "new" when the origin bar's timestamp changes
+bool nS1 = not na(s1x) and (na(s1x[1]) or s1x != s1x[1])
+bool nD1 = not na(d1x) and (na(d1x[1]) or d1x != d1x[1])
+bool nS2 = not na(s2x) and (na(s2x[1]) or s2x != s2x[1])
+bool nD2 = not na(d2x) and (na(d2x[1]) or d2x != d2x[1])
+bool nS3 = not na(s3x) and (na(s3x[1]) or s3x != s3x[1])
+bool nD3 = not na(d3x) and (na(d3x[1]) or d3x != d3x[1])
+
+[new1, in1, out1, msg1] = handle(cfg1, zs1, nS1, s1t, s1b, s1x, nD1, d1t, d1b, d1x)
+[new2, in2, out2, msg2] = handle(cfg2, zs2, nS2, s2t, s2b, s2x, nD2, d2t, d2b, d2x)
+[new3, in3, out3, msg3] = handle(cfg3, zs3, nS3, s3t, s3b, s3x, nD3, d3t, d3b, d3x)
+
+// ---------------------------------------------------------------------------------------------------------------------}
+// 𝘼𝙇𝙀𝙍𝙏𝙎
+// ---------------------------------------------------------------------------------------------------------------------{
+bool   anyNew = new1 or new2 or new3
+bool   anyIn  = in1  or in2  or in3
+bool   anyOut = out1 or out2 or out3
+string allMsg = msg1 + msg2 + msg3
+
+if alertsOn and allMsg != ""
+    alert(syminfo.ticker + "\n" + allMsg, alert.freq_once_per_bar_close)
+
+alertcondition(anyNew, "New Zone",   "EzSD: a new supply/demand zone formed")
+alertcondition(anyIn,  "Zone Test",  "EzSD: price is testing a supply/demand zone")
+alertcondition(anyOut, "Zone Break", "EzSD: a supply/demand zone was broken")
+
+// ---------------------------------------------------------------------------------------------------------------------}
