@@ -17,8 +17,9 @@ File: [`EzSD_supply_demand_zones_v6.pine`](EzSD_supply_demand_zones_v6.pine)
 | Price tag | Rounded label pinned to the right edge — `TF | price`, pointer aimed at the level. Supply tags sit above their band, demand tags below |
 | Flipped zone | Tag prefixed with `⇄` |
 
-Up to three timeframe groups run at once (default: chart TF, 1H, 4H-off). Every zone
-tag names the timeframe it came from, so a 4H zone on a 45m chart reads `4H | 94.05`.
+Up to three timeframe groups run at once (default: chart TF, 1H, 4H-off), with a hard
+**15-minute floor** on the data any of them may use. Every zone tag names the timeframe
+it came from, so a 4H zone on a 45m chart reads `4H | 94.05`.
 
 ## How supply and demand are identified
 
@@ -63,8 +64,17 @@ Minimum Delta Imbalance · When Price Breaks a Zone · Replace Overlapping Zones
 Supply colour · Demand colour · Fill transparency · Line width · Line style
 (Solid/Dotted/Dashed) · Extend Left · Tags · Tag Offset · Tag Size · Max zones
 
-A group asking for a timeframe below the chart's is silently clamped to the chart
-timeframe, so a 4H group on a Daily chart won't produce garbage.
+### Timeframe floor
+
+**Zones are never built from sub-15m data.** Two floors apply and the higher one wins:
+
+- **15 minutes** — a group set to 1m/3m/5m reads 15m instead, and on a sub-15m chart
+  the "chart timeframe" group reads 15m too.
+- **The chart's own timeframe** — `request.security` can't resolve below it, so a 4H
+  group on a Daily chart reads Daily rather than producing garbage.
+
+The clamp is visible rather than silent: tags name the timeframe the zone actually came
+from, so on a 5m chart you'll see `15M | 94.86`.
 
 **Extras** — Monospaced Tags · Break Labels · Retest Markers · Dynamic `alert()` Messages
 

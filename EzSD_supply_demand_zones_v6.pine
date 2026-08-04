@@ -18,6 +18,7 @@ const string G_T1  = "Timeframe 1"
 const string G_T2  = "Timeframe 2"
 const string G_T3  = "Timeframe 3"
 const string G_EXT = "Extras"
+const string TT_TF = "Minimum 15m. Anything lower is raised to 15m — including the chart timeframe itself when the chart is below 15m."
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 string zoneMode  = input.string("ATR", "Zone Height", options = ["ATR", "Candle Wick", "Percent"], group = G_ENG,
@@ -37,7 +38,7 @@ string breakMode = input.string("Flip", "When Price Breaks a Zone", options = ["
 bool   dedupe    = input.bool(true, "Replace Overlapping Zones", group = G_ENG)
 
 // ── Timeframe 1 ──────────────────────────────────────────────────────────────
-string tf1  = input.timeframe("", "TF", inline = "1a", group = G_T1)
+string tf1  = input.timeframe("", "TF", tooltip = TT_TF, inline = "1a", group = G_T1)
 bool   on1  = input.bool(true, "Show", inline = "1a", group = G_T1)
 int    piv1 = input.int(5, "Pivot", minval = 1, inline = "1a", group = G_T1)
 color  sc1  = input.color(#ff1f5c, "Supply", inline = "1b", group = G_T1)
@@ -52,7 +53,7 @@ string ls1  = input.string("Default", "", options = ["Tiny", "Small", "Default",
 int    mx1  = input.int(10, "Max", minval = 1, maxval = 50, inline = "1d", group = G_T1)
 
 // ── Timeframe 2 ──────────────────────────────────────────────────────────────
-string tf2  = input.timeframe("60", "TF", inline = "2a", group = G_T2)
+string tf2  = input.timeframe("60", "TF", tooltip = TT_TF, inline = "2a", group = G_T2)
 bool   on2  = input.bool(true, "Show", inline = "2a", group = G_T2)
 int    piv2 = input.int(5, "Pivot", minval = 1, inline = "2a", group = G_T2)
 color  sc2  = input.color(#ff1f5c, "Supply", inline = "2b", group = G_T2)
@@ -67,7 +68,7 @@ string ls2  = input.string("Default", "", options = ["Tiny", "Small", "Default",
 int    mx2  = input.int(6, "Max", minval = 1, maxval = 50, inline = "2d", group = G_T2)
 
 // ── Timeframe 3 ──────────────────────────────────────────────────────────────
-string tf3  = input.timeframe("240", "TF", inline = "3a", group = G_T3)
+string tf3  = input.timeframe("240", "TF", tooltip = TT_TF, inline = "3a", group = G_T3)
 bool   on3  = input.bool(false, "Show", inline = "3a", group = G_T3)
 int    piv3 = input.int(5, "Pivot", minval = 1, inline = "3a", group = G_T3)
 color  sc3  = input.color(#ff1f5c, "Supply", inline = "3b", group = G_T3)
@@ -90,10 +91,19 @@ bool alertsOn   = input.bool(true, "Dynamic alert() Messages", group = G_EXT)
 // ---------------------------------------------------------------------------------------------------------------------}
 // 𝙃𝙀𝙇𝙋𝙀𝙍𝙎
 // ---------------------------------------------------------------------------------------------------------------------{
-// Never let a group request a timeframe lower than the chart's
+// Zones are never built from sub-15m data. Two floors apply and the higher one wins:
+// 15 minutes, and the chart's own timeframe (request.security cannot resolve below it).
+// So a group set to 5m reads 15m, and on a 5m chart the "chart" group reads 15m too.
+const int    MIN_TF_SEC = 900
+const string MIN_TF     = "15"
+
 tfNorm(simple string t) =>
-    simple string want = t == "" ? timeframe.period : t
-    timeframe.in_seconds(want) < timeframe.in_seconds(timeframe.period) ? timeframe.period : want
+    simple string want     = t == "" ? timeframe.period : t
+    simple int    chartSec = timeframe.in_seconds(timeframe.period)
+    simple bool   chartWins = chartSec > MIN_TF_SEC
+    simple string floorTf  = chartWins ? timeframe.period : MIN_TF
+    simple int    floorSec = chartWins ? chartSec : MIN_TF_SEC
+    timeframe.in_seconds(want) < floorSec ? floorTf : want
 
 // 2700 seconds -> "45M", matches the tag format on the reference chart
 tfName(simple string t) =>
