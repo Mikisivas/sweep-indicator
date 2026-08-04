@@ -17,9 +17,9 @@ File: [`EzSD_supply_demand_zones_v6.pine`](EzSD_supply_demand_zones_v6.pine)
 | Price tag | Rounded label pinned to the right edge — `TF | price`, pointer aimed at the level. Supply tags sit above their band, demand tags below |
 | Flipped zone | Tag prefixed with `⇄` |
 
-Up to three timeframe groups run at once (default: chart TF, 1H, 4H-off), with a hard
-**15-minute floor** on the data any of them may use. Every zone tag names the timeframe
-it came from, so a 4H zone on a 45m chart reads `4H | 94.05`.
+Up to three timeframe groups run at once (default: chart TF, 1H, 4H-off), with a
+configurable floor on the data any of them may use (default 15m). Every zone tag names
+the timeframe it came from, so a 4H zone on a 45m chart reads `4H | 94.05`.
 
 ## How supply and demand are identified
 
@@ -56,7 +56,7 @@ Symbols with no volume data skip steps 2–4 automatically rather than drawing n
 
 ## Inputs
 
-**Detection Engine** — Zone Height (ATR / Candle Wick / Percent) · Height Multiplier ·
+**Detection Engine** — Minimum Timeframe · Zone Height (ATR / Candle Wick / Percent) · Height Multiplier ·
 ATR Length · Volume Confirmation · Volume Baseline · Impulse Volume × Average ·
 Minimum Delta Imbalance · When Price Breaks a Zone · Replace Overlapping Zones
 
@@ -64,19 +64,20 @@ Minimum Delta Imbalance · When Price Breaks a Zone · Replace Overlapping Zones
 Supply colour · Demand colour · Fill transparency · Line width · Line style
 (Solid/Dotted/Dashed) · Extend Left · Tags · Tag Offset · Tag Size · Max zones
 
+**Extras** — Monospaced Tags · Break Labels · Retest Markers · Dynamic `alert()` Messages
+
 ### Timeframe floor
 
-**Zones are never built from sub-15m data.** Two floors apply and the higher one wins:
+Two floors apply to every group and the higher one wins:
 
-- **15 minutes** — a group set to 1m/3m/5m reads 15m instead, and on a sub-15m chart
-  the "chart timeframe" group reads 15m too.
+- **Minimum Timeframe** (Detection Engine, default `15`) — a group set below it is
+  raised to it, and on a chart below it the "chart timeframe" group is raised too.
+  Set it to whatever you want the hard floor to be.
 - **The chart's own timeframe** — `request.security` can't resolve below it, so a 4H
   group on a Daily chart reads Daily rather than producing garbage.
 
 The clamp is visible rather than silent: tags name the timeframe the zone actually came
 from, so on a 5m chart you'll see `15M | 94.86`.
-
-**Extras** — Monospaced Tags · Break Labels · Retest Markers · Dynamic `alert()` Messages
 
 ## Alerts
 

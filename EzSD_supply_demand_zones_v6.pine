@@ -18,9 +18,12 @@ const string G_T1  = "Timeframe 1"
 const string G_T2  = "Timeframe 2"
 const string G_T3  = "Timeframe 3"
 const string G_EXT = "Extras"
-const string TT_TF = "Minimum 15m. Anything lower is raised to 15m — including the chart timeframe itself when the chart is below 15m."
+const string TT_TF = "Raised to the Minimum Timeframe set in Detection Engine (default 15m), or to the chart timeframe, whichever is higher."
 
 // ── Engine ───────────────────────────────────────────────────────────────────
+string minTf     = input.timeframe("15", "Minimum Timeframe", group = G_ENG,
+     tooltip = "Hard floor on the data every timeframe group may use. Anything lower is raised to it — including the chart timeframe itself when the chart is below it.")
+
 string zoneMode  = input.string("ATR", "Zone Height", options = ["ATR", "Candle Wick", "Percent"], group = G_ENG,
      tooltip = "ATR        — every zone is ATR × multiplier thick (uniform look).\nCandle Wick — zone spans the wick of the origin candle.\nPercent    — zone is a % of price.")
 float  zoneMult  = input.float(0.5, "Height Multiplier", minval = 0.05, maxval = 50, step = 0.05, group = G_ENG)
@@ -91,18 +94,18 @@ bool alertsOn   = input.bool(true, "Dynamic alert() Messages", group = G_EXT)
 // ---------------------------------------------------------------------------------------------------------------------}
 // 𝙃𝙀𝙇𝙋𝙀𝙍𝙎
 // ---------------------------------------------------------------------------------------------------------------------{
-// Zones are never built from sub-15m data. Two floors apply and the higher one wins:
-// 15 minutes, and the chart's own timeframe (request.security cannot resolve below it).
-// So a group set to 5m reads 15m, and on a 5m chart the "chart" group reads 15m too.
-const int    MIN_TF_SEC = 900
-const string MIN_TF     = "15"
-
+// Two floors apply to every group and the higher one wins: the Minimum Timeframe
+// input (default 15m), and the chart's own timeframe — request.security cannot
+// resolve below it. So a group set to 5m reads 15m, and on a 5m chart the "chart
+// timeframe" group reads 15m too.
 tfNorm(simple string t) =>
-    simple string want     = t == "" ? timeframe.period : t
-    simple int    chartSec = timeframe.in_seconds(timeframe.period)
-    simple bool   chartWins = chartSec > MIN_TF_SEC
-    simple string floorTf  = chartWins ? timeframe.period : MIN_TF
-    simple int    floorSec = chartWins ? chartSec : MIN_TF_SEC
+    simple string want      = t == "" ? timeframe.period : t
+    simple string minIn     = minTf == "" ? timeframe.period : minTf
+    simple int    chartSec  = timeframe.in_seconds(timeframe.period)
+    simple int    minSec    = timeframe.in_seconds(minIn)
+    simple bool   chartWins = chartSec > minSec
+    simple string floorTf   = chartWins ? timeframe.period : minIn
+    simple int    floorSec  = chartWins ? chartSec : minSec
     timeframe.in_seconds(want) < floorSec ? floorTf : want
 
 // 2700 seconds -> "45M", matches the tag format on the reference chart
