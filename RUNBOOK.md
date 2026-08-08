@@ -49,7 +49,7 @@ python -m unittest discover -s tests -t tests
 `MetaTrader5` installs only on Windows. If you are on Mac/Linux it will fail —
 everything except live/paper still works, see Stage 6.
 
-**Pass condition:** `Ran 143 tests ... OK`.
+**Pass condition:** `Ran 188 tests ... OK`.
 
 That result means the sweep detection, CISD chain, state machine, position
 sizing, news blackout and the full order path are all verified on your machine,
@@ -187,7 +187,11 @@ display-rounding issue, and it is precisely why sizing goes through
 
 ---
 
-## Stage 5 — Backtest on your own data
+## Stage 5 — Backtest on your own data *(optional — skip straight to Stage 7 if you prefer)*
+
+Skipping this means demo is your only evidence before live. That is a legitimate
+choice; just give demo enough time to produce a meaningful number of trades, and
+watch `logs/signals.csv` for setups that were blocked rather than taken.
 
 ```powershell
 python -m ict_bot --config config.yaml --mode backtest --bars 5000
