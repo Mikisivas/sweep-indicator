@@ -299,6 +299,36 @@ retest — that is the whole hypothesis, and a handful of trades cannot answer i
 
 ---
 
+## Stage 7b — Telegram (optional, do it during demo)
+
+Set this up while paper trading so you can watch the alerts arrive before real
+money is involved. Full walkthrough: [`docs/telegram_setup.md`](docs/telegram_setup.md).
+
+Short version:
+
+1. Message **@BotFather** -> `/newbot` -> copy the token.
+2. Message **@userinfobot** -> copy your numeric chat id.
+3. Create a group, add your users and the bot, then read the group id from
+   `https://api.telegram.org/bot<TOKEN>/getUpdates` (group ids are negative).
+
+```powershell
+$env:ICT_NOTIFY__TELEGRAM_BOT_TOKEN="123456789:AAH..."
+```
+
+```yaml
+notify:
+  telegram_broadcast_chat_ids: ["-1001234567890"]   # the group: read-only
+  telegram_admin_chat_id: "987654321"               # you: the only controller
+```
+
+Restart the bot and send `/status` from your own chat. If it replies, the control
+channel works. Ask someone in the group to send `/status` too — they should get
+nothing, and the log should show `ignoring /status from non-admin chat`.
+
+**Pass condition:** you get a reply, the group does not.
+
+---
+
 ## Stage 8 — Live (only after Stage 7 convinces you)
 
 Two independent locks, both required:
@@ -333,6 +363,10 @@ CFD around the open and around news are worse than any simulation.
 | Orders rejected `10019` | Not enough money for that lot size. Lower `risk_pct`, or use an account with more equity |
 | `risk-based size ... under the broker minimum` | Correct behaviour, not a bug — it refuses to round up and exceed your risk budget. The message states the equity that setup needed |
 | Bot runs but never trades | Usually normal. Check `logs/signals.csv`: if there are `blocked` rows, the `detail` column names the gate that stopped it |
+| Telegram silent | Token wrong, or the bot was never messaged/added to the group. Check the log for `telegram sendMessage failed` |
+| `/status` ignored | You are not the admin chat id. The log names the chat id it saw — copy that into `telegram_admin_chat_id` |
+| Bot refuses to start: "admin_chat_id is required" | Commands are enabled but no admin is set. Set it, or set `telegram_commands_enabled: false` |
+| Everything blocked by "paused by admin" | Someone sent `/pause`, and it survives restarts. Send `/resume` |
 
 ---
 
@@ -347,3 +381,4 @@ CFD around the open and around news are worse than any simulation.
 | `state/ict_bot_UT100.json` | crash-safe state; delete it only if you want a clean slate |
 | `ict_bot/signals/engine.py` | the strategy, if you want to read or change the logic |
 | `docs/indicator_parity.md` | how the Python maps onto your Pine indicator |
+| `docs/telegram_setup.md` | alerts for the team, commands for the admin |

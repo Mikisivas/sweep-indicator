@@ -116,6 +116,7 @@ display rounding, not reality. The bot therefore:
 | Session hours | off (broker server time when on) | `session.*` |
 | Minimum R:R | 1.0 | `strategy.min_rr` |
 | Stop distance bounds | off | `strategy.max_stop_points`, `min_stop_points` |
+| Break-even stop | move to entry at +1.5R | `management.break_even_at_r` |
 
 If the risk-based size comes out below the broker minimum lot, the trade is
 **skipped, not rounded up** — rounding up would silently blow the risk budget.
@@ -167,6 +168,53 @@ current — a stale calendar is the one way this protection quietly stops workin
 
 ---
 
+## Break-even stop
+
+Once a trade reaches **+1.5R**, its stop moves to the entry price and it can no
+longer lose:
+
+```yaml
+management:
+  break_even_enabled: true
+  break_even_at_r: 1.5
+  break_even_offset_points: 0   # >0 locks a few points instead of exact entry
+```
+
+Three details that matter:
+
+* **Progress is measured at the exit price** — bid for a long, ask for a short —
+  so a wide spread is never counted as profit you do not actually have.
+* **Checked on every poll** (every 5s), not on bar close. +1.5R can be reached
+  mid-bar, and waiting 15 minutes to protect the trade would defeat the point.
+* **The original risk is persisted.** After the stop moves to entry the broker no
+  longer knows what the trade risked, so R could never be measured again — the
+  state file remembers it, and a restart does not re-apply or lose it.
+
+With a floating spread, a stop exactly at entry can still exit a few points
+negative. Set `break_even_offset_points` to roughly your typical spread to cover
+that.
+
+---
+
+## Telegram: alerts for a team, control for one person
+
+```yaml
+notify:
+  telegram_bot_token: ""                    # keep in the environment
+  telegram_broadcast_chat_ids: ["-1001234567890"]   # a group of 50 -> one id
+  telegram_admin_chat_id: "987654321"       # the ONLY chat that may command
+```
+
+Everyone in the broadcast list receives entry, exit and break-even alerts and is
+strictly **read-only**. Exactly one chat id may send commands — `/status`,
+`/positions`, `/pause`, `/resume`, `/close`, `/closeall`, `/be`, `/risk`,
+`/stop confirm`. Everything from any other chat is logged and ignored, and a
+blank admin id means *nobody*, never *anybody*.
+
+Full walkthrough, including how to get the ids: [`docs/telegram_setup.md`](docs/telegram_setup.md).
+
+---
+
 ## What the logs tell you
 
 Every setup is traced from sweep to exit, and every skipped entry says why:
@@ -194,6 +242,7 @@ ict_bot/
     fvg.py             4H BISI/SIBI zones, built from completed bars only
     engine.py          sweep -> CISD -> order block state machine   <- the strategy
   news.py              economic-calendar blackout
+  telegram.py          alerts out to many, commands in from one
   risk.py              sizing, kill switch, gates
   state.py             crash-safe persistence
   mt5_client/
@@ -203,7 +252,7 @@ ict_bot/
   runner.py            live/paper loop
   backtest.py          simulation + metrics
   cli.py               entry point
-tests/                 143 tests, no MT5 required
+tests/                 188 tests, no MT5 required
 docs/indicator_parity.md
 ```
 

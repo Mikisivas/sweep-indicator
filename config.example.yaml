@@ -51,6 +51,18 @@ session:
   windows: ["09:30-16:00"]
   weekdays: [0, 1, 2, 3, 4]  # 0 = Monday
 
+management:
+  # Once a trade is this far in profit, its stop moves to the entry price and the
+  # trade can no longer lose. Progress is measured at the price you would actually
+  # exit at (bid for a long, ask for a short), so the spread is never counted as
+  # profit you do not have. Checked every poll, not just on bar close.
+  break_even_enabled: true
+  break_even_at_r: 1.5
+  # 0 = stop exactly at entry. With a floating spread that can still exit a few
+  # points negative; set this to roughly your typical spread to cover costs.
+  break_even_offset_points: 0
+  notify_break_even: true
+
 news:
   enabled: true
   minutes_before: 5          # blackout starts 5 min before the release
@@ -72,8 +84,27 @@ news:
   flatten_minutes_before: 2.0
 
 notify:
-  telegram_bot_token: ""     # prefer ICT_NOTIFY__TELEGRAM_BOT_TOKEN
-  telegram_chat_id: ""
+  # Get a token from @BotFather in Telegram. Keep it in the environment:
+  #   $env:ICT_NOTIFY__TELEGRAM_BOT_TOKEN="123456:ABC-..."
+  telegram_bot_token: ""
+
+  # WHO RECEIVES ALERTS (read-only - nothing they type reaches the bot).
+  # For a team, put the bot in one Telegram group and list that group's id here.
+  # Group ids are negative, e.g. -1001234567890.
+  telegram_broadcast_chat_ids: []
+  telegram_chat_id: ""            # legacy single chat, also receives alerts
+
+  # WHO CAN CONTROL THE BOT. Exactly one chat id. Every command from any other
+  # chat is ignored. Blank means nobody - the bot refuses to start with commands
+  # enabled and no admin, so this can never accidentally mean "anyone".
+  # Find your id by messaging @userinfobot.
+  telegram_admin_chat_id: ""
+  telegram_commands_enabled: true
+
+  # Users can send /start to subscribe themselves to alerts.
+  telegram_allow_self_subscribe: true
+  telegram_join_password: ""      # if set, /start <password> is required
+
   discord_webhook: ""
   notify_entries: true
   notify_exits: true

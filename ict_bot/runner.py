@@ -32,7 +32,8 @@ from .news import NewsFilter
 from .notify import Notifier
 from .risk import RiskManager
 from .signals.engine import IctSignalEngine
-from .state import PendingLimit, load_state
+from .state import ManagedPosition, PendingLimit, load_state
+from .telegram import HELP_TEXT, TelegramClient, dispatch
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,8 @@ class LiveRunner:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.session = Mt5Session(cfg.mt5)
-        self.notifier = Notifier(cfg.notify)
+        self.telegram = TelegramClient(cfg.notify)
+        self.notifier = Notifier(cfg.notify, telegram=self.telegram)
         self.news = NewsFilter(cfg.news)
         self.engine = self._fresh_engine()
         self.feed: Optional[MarketFeed] = None
@@ -78,6 +80,9 @@ class LiveRunner:
 
         self.state, self.state_path = load_state(self.cfg.runtime.state_file, self.session.symbol)
         self.state.restore_book(self.risk.book)
+        self.telegram.load_subscribers(self.state.subscribers)
+        if self.state.paused:
+            log.warning("restored a PAUSED state - no new entries until /resume")
 
         news_ok = self.news.refresh(self.session.utc_now(), force=True)
         if self.cfg.news.enabled and not news_ok:
@@ -86,7 +91,9 @@ class LiveRunner:
                       else "allowed by config")
 
         self._warm_up()
-        self._known_tickets = {p.ticket: p for p in self.executor.positions()}
+        # Adopt whatever is already open so it is under break-even management from
+        # the first second, not from the first new bar.
+        self._reconcile_positions()
         log.info("ready: %s %s, %d open position(s), watermark %s",
                  self.session.symbol, self.cfg.mt5.exec_timeframe, len(self._known_tickets),
                  self.session.server_datetime(self.watermark))
@@ -163,6 +170,7 @@ class LiveRunner:
         if self.state is not None:
             if self.risk is not None:
                 self.state.absorb_book(self.risk.book)
+            self.state.subscribers = self.telegram.subscribers()
             try:
                 self.state.save(self.state_path)
             except OSError as exc:
@@ -180,10 +188,18 @@ class LiveRunner:
         utc_now = self.session.utc_now()
         self.news.refresh(utc_now)
 
+        self._handle_telegram()
         self._reconcile_positions()
+        # Runs on EVERY poll, not just on bar close: +1.5R can be reached mid-bar
+        # and waiting 15 minutes to protect the trade would defeat the point.
+        self._manage_open_positions()
         self._expire_pending_limits()
         self._maybe_flatten_for_news(utc_now)
 
+        self._process_new_bars()
+        self._persist()
+
+    def _process_new_bars(self) -> None:
         latest = self.feed.latest_closed(self.cfg.mt5.exec_timeframe)
         if latest is None or latest.time <= self.watermark:
             return
@@ -215,12 +231,6 @@ class LiveRunner:
                 self._handle_event(event, act=is_latest)
             self.watermark = bar.time
             self.state.last_acted_bar_time = bar.time
-
-        self.state.absorb_book(self.risk.book)
-        try:
-            self.state.save(self.state_path)
-        except OSError as exc:
-            log.error("could not save state: %s", exc)
 
     # ------------------------------------------------------------- event flow
     def _handle_event(self, event: SignalEvent, act: bool) -> None:
@@ -278,6 +288,11 @@ class LiveRunner:
         utc_now = self.session.utc_now()
         equity = self.session.account().equity
 
+        if self.state.paused:
+            # /pause only blocks NEW entries. Open trades keep their SL/TP and
+            # break-even management, because abandoning them would be worse.
+            return gate.block("paused by admin (/resume to allow entries)", "paused")
+
         for check in (
             self.risk.check_trade_quality(trade),
             self.risk.check_daily(server_now, equity),
@@ -310,6 +325,9 @@ class LiveRunner:
             return
 
         self.risk.record_fill()
+        # Put it under management straight away, using the broker's own view of the
+        # fill, so break-even works from the very next poll.
+        self._reconcile_positions()
         filled = trade.plan.finalize(result.price)  # true numbers at the real fill
         self.journal.write(event, action="entered", trade=filled, volume=result.volume,
                            ticket=result.ticket,
@@ -380,7 +398,8 @@ class LiveRunner:
                     self.state.drop_pending(pending.ticket)
 
     def _reconcile_positions(self) -> None:
-        """Detect closes so the daily book and notifications stay honest."""
+        """Detect closes so the daily book and notifications stay honest, and make
+        sure every open position has a management record."""
         current = {p.ticket: p for p in self.executor.positions()}
         for ticket, previous in list(self._known_tickets.items()):
             if ticket in current:
@@ -394,6 +413,100 @@ class LiveRunner:
                 kind="exit")
         self._known_tickets = current
 
+        # Adopt any position we are not yet tracking -- covers a restart, and
+        # records the stop it was opened with as the original risk.
+        managed = self.state.managed()
+        for ticket, position in current.items():
+            if ticket in managed:
+                continue
+            if not position.stop:
+                log.warning("position %s has no stop loss - it cannot be managed to "
+                            "break-even", ticket)
+                continue
+            self.state.put_managed(ManagedPosition(
+                ticket=ticket, direction=position.direction.value,
+                entry=position.price_open, original_stop=position.stop,
+                take_profit=position.take_profit, volume=position.volume,
+                opened_at=position.time,
+                # If the stop already sits at entry, break-even clearly ran before.
+                break_even_done=abs(position.stop - position.price_open) < self.session.spec.point,
+            ))
+        self.state.keep_only_managed(current.keys())
+
+    # -------------------------------------------------------- trade management
+    def _manage_open_positions(self) -> None:
+        """Move the stop to break-even once a trade is far enough in profit."""
+        if not self.cfg.management.break_even_enabled:
+            return
+        target_r = self.cfg.management.break_even_at_r
+        managed = self.state.managed()
+        if not managed:
+            return
+
+        tick = self.session.tick()
+        for position in self.executor.positions():
+            record = managed.get(position.ticket)
+            if record is None or record.break_even_done:
+                continue
+            risk = record.risk_distance
+            if risk <= 0:
+                continue
+            progress = self._progress_in_r(record, position, tick)
+            if progress < target_r:
+                continue
+            self._apply_break_even(record, position, progress)
+
+    def _progress_in_r(self, record: ManagedPosition, position, tick) -> float:
+        """How far the trade has run, in multiples of its original risk.
+
+        Measured at the price we would actually exit at -- bid for a long, ask
+        for a short -- so the spread is never counted as profit we do not have.
+        """
+        risk = record.risk_distance
+        if risk <= 0:
+            return 0.0
+        if position.direction is Direction.LONG:
+            return (tick.bid - record.entry) / risk
+        return (record.entry - tick.ask) / risk
+
+    def _apply_break_even(self, record: ManagedPosition, position, progress: float,
+                          manual: bool = False) -> bool:
+        spec = self.session.spec
+        offset = self.cfg.management.break_even_offset_points * spec.point
+        sign = 1 if position.direction is Direction.LONG else -1
+        new_stop = spec.round_price(record.entry + sign * offset)
+
+        # Never move a stop backwards -- if it is already at or beyond break-even,
+        # leave it where it is.
+        already_there = (position.stop >= new_stop if position.direction is Direction.LONG
+                         else 0 < position.stop <= new_stop)
+        if already_there:
+            record.break_even_done = True
+            self.state.put_managed(record)
+            return False
+
+        take_profit = position.take_profit or record.take_profit
+        if not self.executor.modify_sltp(position.ticket, new_stop, take_profit):
+            log.error("break-even modify failed on ticket %s - will retry next poll",
+                      position.ticket)
+            return False
+
+        record.break_even_done = True
+        record.original_stop = record.original_stop  # keep the original risk on record
+        self.state.put_managed(record)
+        digits = spec.digits
+        log.info("BREAK-EVEN%s: ticket %s stop %.*f -> %.*f at %+.2fR",
+                 " (manual)" if manual else "", position.ticket,
+                 digits, position.stop, digits, new_stop, progress)
+        if self.cfg.management.notify_break_even:
+            self.notifier.send(
+                f"Stop moved to break-even\n{position.direction.value.upper()} "
+                f"{self.session.symbol} ticket {position.ticket}\n"
+                f"at {progress:+.2f}R | stop {position.stop:.{digits}f} -> "
+                f"{new_stop:.{digits}f}\nThis trade can no longer lose.",
+                kind="exit")
+        return True
+
     def _closed_profit(self, ticket: int) -> float:
         """Sum the deals of a closed position (profit + swap + commission)."""
         mt5 = self.session.mt5
@@ -405,6 +518,195 @@ class LiveRunner:
         if not deals:
             return 0.0
         return float(sum(d.profit + d.swap + d.commission for d in deals))
+
+    # ------------------------------------------------------------- telegram
+    def _handle_telegram(self) -> None:
+        """Poll for admin commands. Non-admin traffic never reaches this code."""
+        if not self.telegram.commands_enabled:
+            return
+        for command in self.telegram.poll():
+            log.info("telegram command from admin: %s", command.raw)
+            reply = dispatch(command, self._command_handlers())
+            if reply:
+                self.telegram.send(command.chat_id, reply)
+        self.state.subscribers = self.telegram.subscribers()
+
+    def _command_handlers(self) -> dict:
+        return {
+            "help": lambda c: HELP_TEXT,
+            "start": lambda c: HELP_TEXT,
+            "status": self._cmd_status,
+            "positions": self._cmd_positions,
+            "pause": self._cmd_pause,
+            "resume": self._cmd_resume,
+            "close": self._cmd_close,
+            "closeall": self._cmd_close_all,
+            "be": self._cmd_break_even,
+            "risk": self._cmd_risk,
+            "subscribers": self._cmd_subscribers,
+            "kick": self._cmd_kick,
+            "stop": self._cmd_stop,
+        }
+
+    def _cmd_status(self, _command) -> str:
+        account = self.session.account()
+        positions = self.executor.positions()
+        book = self.risk.book
+        blackout = self.news.status(self.session.utc_now())
+        armed = [s.direction.value for s in (self.engine.bull, self.engine.bear) if s]
+        day_move = account.equity - book.start_equity if book.start_equity else 0.0
+        lines = [
+            f"{'PAUSED' if self.state.paused else 'RUNNING'} | "
+            f"{self.cfg.runtime.mode.upper()} | {self.session.symbol} "
+            f"{self.cfg.mt5.exec_timeframe}",
+            f"account {account.login} ({'demo' if account.is_demo else 'LIVE'})",
+            f"equity {account.equity:,.2f} {account.currency} ({day_move:+,.2f} today)",
+            f"risk {self.cfg.risk.risk_pct}% | break-even at "
+            f"{self.cfg.management.break_even_at_r}R"
+            f"{'' if self.cfg.management.break_even_enabled else ' (OFF)'}",
+            f"open positions: {len(positions)}",
+            f"armed setups: {', '.join(armed) if armed else 'none'}",
+            f"trades today: {book.trades} | realised {book.realised:+,.2f}",
+            f"spread now: {self.session.spread_points():.0f} pts",
+            f"news: {'BLOCKED - ' + blackout.reason if blackout.blocked else 'clear'}",
+        ]
+        if book.halted:
+            lines.append(f"KILL SWITCH ACTIVE: {book.halt_reason}")
+        return "\n".join(lines)
+
+    def _cmd_positions(self, _command) -> str:
+        positions = self.executor.positions()
+        if not positions:
+            return "No open positions."
+        managed = self.state.managed()
+        tick = self.session.tick()
+        digits = self.session.spec.digits
+        lines = []
+        for position in positions:
+            record = managed.get(position.ticket)
+            progress = self._progress_in_r(record, position, tick) if record else 0.0
+            be = " [at break-even]" if record and record.break_even_done else ""
+            lines.append(
+                f"#{position.ticket} {position.direction.value.upper()} "
+                f"{position.volume} lots @ {position.price_open:.{digits}f}\n"
+                f"   stop {position.stop:.{digits}f} | target "
+                f"{position.take_profit:.{digits}f}\n"
+                f"   {progress:+.2f}R | P&L {position.profit:+,.2f}{be}")
+        return "\n".join(lines)
+
+    def _cmd_pause(self, _command) -> str:
+        if self.state.paused:
+            return "Already paused."
+        self.state.paused = True
+        self._persist()
+        log.warning("PAUSED by admin - no new entries")
+        return ("Paused. No new entries.\nOpen positions keep their stop, target and "
+                "break-even management. /resume to allow entries again.")
+
+    def _cmd_resume(self, _command) -> str:
+        if not self.state.paused:
+            return "Not paused."
+        self.state.paused = False
+        self._persist()
+        log.warning("RESUMED by admin")
+        return "Resumed. New entries allowed."
+
+    def _cmd_close(self, command) -> str:
+        if not command.arg.isdigit():
+            return "Usage: /close <ticket>   (see /positions)"
+        ticket = int(command.arg)
+        if not any(p.ticket == ticket for p in self.executor.positions()):
+            return f"No open position with ticket {ticket}."
+        result = self.executor.close_position(ticket, reason="telegram")
+        if result.ok:
+            self.state.drop_managed(ticket)
+            self._persist()
+            return f"Closed #{ticket} at {result.price:.{self.session.spec.digits}f}."
+        return f"Could not close #{ticket}: {result.message}"
+
+    def _cmd_close_all(self, _command) -> str:
+        positions = self.executor.positions()
+        if not positions:
+            return "No open positions."
+        closed, failed = [], []
+        for position in positions:
+            result = self.executor.close_position(position.ticket, reason="telegram closeall")
+            (closed if result.ok else failed).append(position.ticket)
+            if result.ok:
+                self.state.drop_managed(position.ticket)
+        self._persist()
+        reply = f"Closed {len(closed)} position(s): {closed}" if closed else "Nothing closed."
+        if failed:
+            reply += f"\nFAILED on {failed} - check the terminal."
+        return reply
+
+    def _cmd_break_even(self, command) -> str:
+        if not command.arg.isdigit():
+            return "Usage: /be <ticket>"
+        ticket = int(command.arg)
+        position = next((p for p in self.executor.positions() if p.ticket == ticket), None)
+        if position is None:
+            return f"No open position with ticket {ticket}."
+        record = self.state.managed().get(ticket)
+        if record is None:
+            return f"Position {ticket} is not managed (it had no stop when adopted)."
+        tick = self.session.tick()
+        progress = self._progress_in_r(record, position, tick)
+        if progress <= 0:
+            return (f"#{ticket} is at {progress:+.2f}R - moving the stop to entry now "
+                    f"would put it in front of price. Refusing.")
+        if self._apply_break_even(record, position, progress, manual=True):
+            self._persist()
+            return f"#{ticket} stop moved to break-even at {progress:+.2f}R."
+        return f"#{ticket} stop is already at or beyond break-even."
+
+    def _cmd_risk(self, command) -> str:
+        try:
+            value = float(command.arg)
+        except ValueError:
+            return f"Usage: /risk <percent>   (currently {self.cfg.risk.risk_pct})"
+        if not 0 < value <= 5:
+            return "Refusing: risk per trade must be above 0 and no more than 5%."
+        previous = self.cfg.risk.risk_pct
+        self.cfg.risk.risk_pct = value
+        log.warning("risk per trade changed by admin: %.2f%% -> %.2f%%", previous, value)
+        return (f"Risk per trade {previous}% -> {value}%.\n"
+                f"Applies to the next entry. Not written to config.yaml, so a restart "
+                f"returns to {previous}%.")
+
+    def _cmd_subscribers(self, _command) -> str:
+        audience = self.telegram.audience()
+        subscribed = self.telegram.subscribers()
+        return (f"{len(audience)} chat(s) receive alerts.\n"
+                f"self-subscribed: {len(subscribed)}\n"
+                + ("\n".join(subscribed) if subscribed else "(none)"))
+
+    def _cmd_kick(self, command) -> str:
+        if not command.arg:
+            return "Usage: /kick <chat_id>   (see /subscribers)"
+        if self.telegram.remove_subscriber(command.arg):
+            self.state.subscribers = self.telegram.subscribers()
+            self._persist()
+            return f"Removed {command.arg} from alerts."
+        return (f"{command.arg} is not a self-subscribed chat. Chats listed in "
+                f"config.yaml must be removed there.")
+
+    def _cmd_stop(self, command) -> str:
+        if command.arg.lower() != "confirm":
+            return ("This shuts the bot down. Open positions keep their stop and target "
+                    "but will no longer be managed to break-even.\n"
+                    "Send: /stop confirm")
+        log.warning("shutdown requested by admin over Telegram")
+        self._running = False
+        return "Shutting down. Positions keep their SL/TP."
+
+    def _persist(self) -> None:
+        self.state.absorb_book(self.risk.book)
+        self.state.subscribers = self.telegram.subscribers()
+        try:
+            self.state.save(self.state_path)
+        except OSError as exc:
+            log.error("could not save state: %s", exc)
 
     def _maybe_flatten_for_news(self, utc_now: datetime) -> None:
         status = self.news.should_flatten(utc_now)

@@ -88,9 +88,28 @@ class NewsConfig:
 
 
 @dataclass
+class ManagementConfig:
+    """What happens to a position AFTER it is open."""
+
+    break_even_enabled: bool = True
+    break_even_at_r: float = 1.5          # move the stop once the trade is +1.5R
+    break_even_offset_points: float = 0.0  # >0 locks a few points instead of exact entry
+    notify_break_even: bool = True
+
+
+@dataclass
 class NotifyConfig:
     telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
+    # Everyone who receives alerts. One group/channel id is easiest for a team;
+    # individual chat ids also work. Read-only -- these cannot command the bot.
+    telegram_broadcast_chat_ids: list[str] = field(default_factory=list)
+    telegram_chat_id: str = ""            # legacy single target, also broadcast
+    # The ONE chat allowed to send commands. Anything from any other chat is
+    # ignored, no matter what it says.
+    telegram_admin_chat_id: str = ""
+    telegram_commands_enabled: bool = True
+    telegram_allow_self_subscribe: bool = True   # users can /start to receive alerts
+    telegram_join_password: str = ""             # if set, /start <password> is required
     discord_webhook: str = ""
     notify_entries: bool = True
     notify_exits: bool = True
@@ -141,6 +160,7 @@ class Config:
     strategy: StrategyConfig = field(default_factory=StrategyConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
     session: SessionConfig = field(default_factory=SessionConfig)
+    management: ManagementConfig = field(default_factory=ManagementConfig)
     news: NewsConfig = field(default_factory=NewsConfig)
     notify: NotifyConfig = field(default_factory=NotifyConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
@@ -193,6 +213,16 @@ class Config:
             raise ValueError("risk.risk_pct must be in (0, 100]")
         if self.risk.max_positions < 1:
             raise ValueError("risk.max_positions must be >= 1")
+        if self.management.break_even_enabled and self.management.break_even_at_r <= 0:
+            raise ValueError("management.break_even_at_r must be > 0")
+        if self.management.break_even_offset_points < 0:
+            raise ValueError("management.break_even_offset_points must be >= 0")
+        if self.notify.telegram_commands_enabled and self.notify.telegram_bot_token \
+                and not self.notify.telegram_admin_chat_id:
+            raise ValueError(
+                "notify.telegram_admin_chat_id is required when Telegram commands are "
+                "enabled - without it no one could control the bot, and leaving it blank "
+                "must never mean 'anyone may'")
         if self.news.enabled and self.news.source not in ("csv", "ics", "http_json", "none"):
             raise ValueError(f"news.source invalid: {self.news.source}")
         if self.news.on_feed_unavailable not in ("block", "allow"):

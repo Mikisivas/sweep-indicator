@@ -8,6 +8,10 @@ persist is the small set of facts that history cannot tell us:
                           restart can never enter the same setup twice
     daily book            kill-switch accounting for the current broker day
     pending limits        limit_at_ob orders awaiting fill or expiry
+    managed positions     each open trade's ORIGINAL stop, so break-even can
+                          still measure R after the stop has been moved
+    paused                an admin /pause survives a restart
+    subscribers           Telegram chats that self-subscribed to alerts
 
 Writes are atomic (temp file + os.replace) so a kill mid-write cannot corrupt it.
 """
@@ -40,6 +44,29 @@ class PendingLimit:
 
 
 @dataclass
+class ManagedPosition:
+    """What we must remember about an open trade once its stop starts moving.
+
+    After break-even fires, the live SL equals the entry, so the original risk
+    is gone from the broker's view. Without this record R could never be
+    measured again.
+    """
+
+    ticket: int
+    direction: str
+    entry: float
+    original_stop: float
+    take_profit: float
+    volume: float
+    opened_at: int = 0
+    break_even_done: bool = False
+
+    @property
+    def risk_distance(self) -> float:
+        return abs(self.entry - self.original_stop)
+
+
+@dataclass
 class BotState:
     version: int = STATE_VERSION
     symbol: str = ""
@@ -51,6 +78,9 @@ class BotState:
     day_halted: bool = False
     day_halt_reason: str = ""
     pending_limits: list[dict] = field(default_factory=list)
+    managed_positions: list[dict] = field(default_factory=list)
+    paused: bool = False
+    subscribers: list[str] = field(default_factory=list)
 
     # ------------------------------------------------------------------- io
     @classmethod
@@ -125,6 +155,32 @@ class BotState:
 
     def pendings(self) -> list[PendingLimit]:
         return [PendingLimit(**p) for p in self.pending_limits]
+
+    # ----------------------------------------------------- managed positions
+    def managed(self) -> dict[int, ManagedPosition]:
+        out: dict[int, ManagedPosition] = {}
+        for row in self.managed_positions:
+            try:
+                position = ManagedPosition(**row)
+            except TypeError:
+                continue  # a record from an older layout; drop it rather than crash
+            out[position.ticket] = position
+        return out
+
+    def put_managed(self, position: ManagedPosition) -> None:
+        self.managed_positions = [r for r in self.managed_positions
+                                  if r.get("ticket") != position.ticket]
+        self.managed_positions.append(asdict(position))
+
+    def drop_managed(self, ticket: int) -> None:
+        self.managed_positions = [r for r in self.managed_positions
+                                  if r.get("ticket") != ticket]
+
+    def keep_only_managed(self, tickets) -> None:
+        """Forget positions the broker no longer reports as open."""
+        live = {int(t) for t in tickets}
+        self.managed_positions = [r for r in self.managed_positions
+                                  if int(r.get("ticket", -1)) in live]
 
 
 def find_state_path(configured: str, symbol: str) -> str:

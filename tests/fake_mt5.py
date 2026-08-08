@@ -104,6 +104,22 @@ class FakeMt5:
         if self.forced_retcode is not None:
             return SimpleNamespace(retcode=self.forced_retcode, order=0, deal=0,
                                    price=0.0, volume=0.0, comment="rejected")
+
+        if request["action"] == self.TRADE_ACTION_SLTP:
+            for position in self.positions:
+                if position.ticket == request.get("position"):
+                    position.sl = request.get("sl", position.sl)
+                    position.tp = request.get("tp", position.tp)
+            return SimpleNamespace(retcode=self.TRADE_RETCODE_DONE, order=0, deal=0,
+                                   price=0.0, volume=0.0, comment="done")
+
+        if request["action"] == self.TRADE_ACTION_DEAL and "position" in request:
+            self.positions = [p for p in self.positions
+                              if p.ticket != request["position"]]
+            return SimpleNamespace(retcode=self.TRADE_RETCODE_DONE, order=0, deal=0,
+                                   price=request.get("price", self.bid),
+                                   volume=request.get("volume", 0.0), comment="closed")
+
         self._ticket += 1
         price = request.get("price", self.ask)
         if request["action"] == self.TRADE_ACTION_DEAL and "position" not in request:
@@ -130,7 +146,19 @@ class FakeMt5:
 
     # --- helpers for tests -------------------------------------------------
     def deals(self):
-        return [r for r in self.requests if r["action"] == self.TRADE_ACTION_DEAL]
+        return [r for r in self.requests
+                if r["action"] == self.TRADE_ACTION_DEAL and "position" not in r]
+
+    def sltp_requests(self):
+        return [r for r in self.requests if r["action"] == self.TRADE_ACTION_SLTP]
+
+    def closes(self):
+        return [r for r in self.requests
+                if r["action"] == self.TRADE_ACTION_DEAL and "position" in r]
+
+    def move_price(self, bid, spread=0.10):
+        self.bid = bid
+        self.ask = round(bid + spread, 2)
 
 
 def rows_from(candle_rows, start=1_700_000_000, step=STEP):
