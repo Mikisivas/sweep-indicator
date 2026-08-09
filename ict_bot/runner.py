@@ -332,6 +332,7 @@ class LiveRunner:
         self.journal.write(event, action="entered", trade=filled, volume=result.volume,
                            ticket=result.ticket,
                            detail=f"sized via {sizing.method}, risk {sizing.risk_amount:,.2f}")
+        self._warn_if_hard_to_copy(result.volume)
         slip = result.price - trade.entry
         log.info("ENTERED %s %.2f lots @ %.*f | stop %.*f | target %.*f | R:R %.2f | "
                  "risk %.2f | slippage %+.*f",
@@ -699,6 +700,23 @@ class LiveRunner:
         log.warning("shutdown requested by admin over Telegram")
         self._running = False
         return "Shutting down. Positions keep their SL/TP."
+
+    def _warn_if_hard_to_copy(self, volume: float) -> None:
+        """Copy trading scales follower lots DOWN from the master's.
+
+        A master lot near the broker minimum leaves nothing to scale: small
+        followers either fail to replicate, or replicate at the minimum lot and
+        carry far more risk than intended. The trade still goes ahead - this is
+        information, not a veto - but it should not pass silently.
+        """
+        floor = self.cfg.risk.min_master_volume
+        if floor <= 0 or volume >= floor:
+            return
+        message = (f"Master lot {volume} is below min_master_volume {floor}. "
+                   f"Followers scaling down from this may not replicate, or may "
+                   f"replicate at the broker minimum and be over-risked.")
+        log.warning("%s", message)
+        self.notifier.send_admin(f"Copy-trading warning\n{message}")
 
     def _persist(self) -> None:
         self.state.absorb_book(self.risk.book)

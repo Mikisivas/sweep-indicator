@@ -353,3 +353,28 @@ class TestRunnerCommands(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCopyTradingWarning(TestRunnerCommands):
+    """A master lot too small to scale down is flagged, not blocked."""
+
+    def test_small_master_lot_warns_the_admin(self):
+        self.cfg.risk.min_master_volume = 50.0    # far above what the fixture sizes
+        self._confirm_bar()
+        self.bot.tick_once()
+        self.assertEqual(len(self.fake.deals()), 1, "the trade must still be taken")
+        self.assertTrue(self._said("Copy-trading warning"))
+        self.assertTrue(self._said("may not replicate"))
+
+    def test_no_warning_when_the_lot_is_big_enough(self):
+        self.cfg.risk.min_master_volume = 1.0
+        self._confirm_bar()
+        self.bot.tick_once()
+        self.assertEqual(len(self.fake.deals()), 1)
+        self.assertFalse(self._said("Copy-trading warning"))
+
+    def test_off_by_default(self):
+        self.assertEqual(Config().risk.min_master_volume, 0.0)
+        self._confirm_bar()
+        self.bot.tick_once()
+        self.assertFalse(self._said("Copy-trading warning"))

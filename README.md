@@ -215,6 +215,25 @@ Full walkthrough, including how to get the ids: [`docs/telegram_setup.md`](docs/
 
 ---
 
+## Copy trading
+
+The bot runs on the **master account only**. Replication to followers is the
+broker's job — there is no code for it here, and none is needed. Everything the
+bot enforces is enforced once at the master and inherited by everyone following:
+the news blackout, the daily kill switch, the spread and session filters, and
+`/pause`.
+
+Keep `entry_trigger: market_on_cisd`. Market orders replicate cleanly; a pending
+limit resting at the order block may fill on the master and not on followers.
+
+Before going live, verify on a demo master + demo follower that your copy service
+replicates **SL/TP modifications** — break-even works by modifying an open
+position's stop, and if that does not propagate, your followers keep the original
+stop while you sit protected. That check and four others are in
+[`docs/copy_trading.md`](docs/copy_trading.md).
+
+---
+
 ## What the logs tell you
 
 Every setup is traced from sweep to exit, and every skipped entry says why:
@@ -252,7 +271,7 @@ ict_bot/
   runner.py            live/paper loop
   backtest.py          simulation + metrics
   cli.py               entry point
-tests/                 188 tests, no MT5 required
+tests/                 203 tests, no MT5 required
 docs/indicator_parity.md
 ```
 

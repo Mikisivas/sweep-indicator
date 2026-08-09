@@ -54,6 +54,13 @@ class RiskConfig:
     max_spread_points: float = 60.0       # skip entries when the floating spread blows out
     margin_buffer: float = 0.5            # required margin must fit in this fraction of free margin
     close_on_opposite_signal: bool = False
+    # Copy trading: followers' lots are scaled down from the master's. If the
+    # master trades near the broker minimum, small followers scale below it and
+    # the trade may not replicate at all, or replicate at min lot and be
+    # over-risked. 0 = off; set it to the smallest master lot you consider safe
+    # to copy. Trades are still taken, but a warning is logged and sent to the
+    # admin so you can see it happening.
+    min_master_volume: float = 0.0
 
 
 @dataclass

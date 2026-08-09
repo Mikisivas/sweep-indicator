@@ -43,6 +43,12 @@ risk:
   max_spread_points: 60      # UT100 floats; skip entries when it blows out
   margin_buffer: 0.5         # required margin must fit in 50% of free margin
   close_on_opposite_signal: false
+  # COPY TRADING: followers' lots are scaled DOWN from the master's. A master lot
+  # near the broker minimum leaves nothing to scale, so small followers may not
+  # replicate at all - or replicate at min lot and be over-risked. Set this to the
+  # smallest master lot you consider safe to copy; the trade is still taken, but a
+  # warning is logged and sent to the admin. 0 = off. See docs/copy_trading.md.
+  min_master_volume: 0
 
 session:
   # Broker SERVER time, not your local time. Disabled by default: the index CFD

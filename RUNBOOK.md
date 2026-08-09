@@ -49,7 +49,7 @@ python -m unittest discover -s tests -t tests
 `MetaTrader5` installs only on Windows. If you are on Mac/Linux it will fail —
 everything except live/paper still works, see Stage 6.
 
-**Pass condition:** `Ran 188 tests ... OK`.
+**Pass condition:** `Ran 203 tests ... OK`.
 
 That result means the sweep detection, CISD chain, state machine, position
 sizing, news blackout and the full order path are all verified on your machine,
@@ -333,6 +333,24 @@ nothing, and the log should show `ignoring /status from non-admin chat`.
 
 ---
 
+## Stage 7c — Copy-trading checks (if followers will mirror this account)
+
+Set up **one demo master + one demo follower** and confirm five things. Full
+detail in [`docs/copy_trading.md`](docs/copy_trading.md); the critical one:
+
+**Do SL/TP modifications replicate?** Break-even moves an open position's stop.
+If your copy service replicates entries and exits but not modifications, your
+followers never get break-even protection while you do. Let a demo trade reach
++1.5R, watch the master's stop move to entry, then check the follower's stop.
+
+The other four: how follower lots are scaled, what happens below the minimum lot,
+whether `/close` and `/closeall` replicate, and the replication latency.
+
+**Pass condition:** the follower's stop moved when the master's did, and
+`/closeall` closed both.
+
+---
+
 ## Stage 8 — Live (only after Stage 7 convinces you)
 
 Two independent locks, both required:
@@ -386,3 +404,4 @@ CFD around the open and around news are worse than any simulation.
 | `ict_bot/signals/engine.py` | the strategy, if you want to read or change the logic |
 | `docs/indicator_parity.md` | how the Python maps onto your Pine indicator |
 | `docs/telegram_setup.md` | alerts for the team, commands for the admin |
+| `docs/copy_trading.md` | running this as a MEX Atlantic master account |
